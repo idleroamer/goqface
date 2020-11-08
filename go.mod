@@ -1,4 +1,4 @@
-module github.com/goqface
+module github.com/idleroamer/goqface
 
 go 1.15
 
