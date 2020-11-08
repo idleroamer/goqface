@@ -1,0 +1,45 @@
+module Examples.AddressBook 1.0;
+
+@ipc-sync: true
+interface AddressBook {
+    bool isLoaded;
+    Contact currentContact;
+    list<Contact> contacts;
+    list<int> intValues;
+    readonly map<Contact> mapOfC;
+    Nested nested;
+
+    void createNewContact();
+    void selectContact(int contactId);
+    bool deleteContact(int contactId);
+    void updateContact(int contactId, Contact contact);
+
+    signal contactCreated(Contact contact);
+    signal contactUpdateFailed(FailureReason failureReason);
+    signal contactDeleted(Contact contact);
+    signal contactUpdatedTo(int index, Contact contact);
+}
+
+struct Contact {
+    int idx
+    string name
+    string number
+    ContactType type
+}
+
+struct Nested {
+    string title
+    Contact listOfContact
+}
+
+enum ContactType {
+    Friend,
+    Family,
+    Colleague,
+}
+
+enum FailureReason {
+    Full,
+    Other,
+}
+
