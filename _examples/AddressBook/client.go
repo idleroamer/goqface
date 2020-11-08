@@ -6,7 +6,7 @@ package main
 import (
 	"fmt"
 
-	addressbook "github.com/goqface/_examples/AddressBook/Examples/AddressBook"
+	addressbook "github.com/idleroamer/goqface/_examples/AddressBook/Examples/AddressBook"
 
 	"github.com/godbus/dbus/v5"
 )

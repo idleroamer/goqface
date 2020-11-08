@@ -1,26 +1,31 @@
-package main
-
-//go:generate python3 ../../codegen.py --input AddressBook.qface
-//go:generate gofmt -w Examples
+package prop
 
 import (
 	"errors"
 	"fmt"
-	"os"
+	"reflect"
 	"strconv"
-
-	addressbook "github.com/idleroamer/goqface/_examples/AddressBook/Examples/AddressBook"
+	"testing"
 
 	"github.com/godbus/dbus/v5"
+	addressbook "github.com/idleroamer/goqface/test/AddressBook"
 )
 
-type AddressBookImpl struct {
+//go:generate python3 ../codegen.py --input AddressBook.qface
+//go:generate gofmt -w AddressBook
+
+type Foo struct {
+	Id    int
+	Value string
+}
+
+type AddressBookAdapter struct {
 	*addressbook.AddressBook
 }
 
 var Idx int
 
-func (addressbookInterface *AddressBookImpl) CreateNewContact() *dbus.Error {
+func (addressbookInterface *AddressBookAdapter) CreateNewContact() *dbus.Error {
 	var contact addressbook.Contact
 	contact.Idx = Idx
 	Idx++
@@ -33,7 +38,7 @@ func (addressbookInterface *AddressBookImpl) CreateNewContact() *dbus.Error {
 	return nil
 }
 
-func (addressbookInterface *AddressBookImpl) SelectContact(contactId int) *dbus.Error {
+func (addressbookInterface *AddressBookAdapter) SelectContact(contactId int) *dbus.Error {
 	found := false
 	for _, entry := range addressbookInterface.Contacts() {
 		if entry.Idx == contactId {
@@ -52,7 +57,7 @@ func (addressbookInterface *AddressBookImpl) SelectContact(contactId int) *dbus.
 	return nil
 }
 
-func (addressbookInterface *AddressBookImpl) DeleteContact(contactId int) (bool, *dbus.Error) {
+func (addressbookInterface *AddressBookAdapter) DeleteContact(contactId int) (bool, *dbus.Error) {
 	found := false
 	i := 0
 	tmpContacts := addressbookInterface.Contacts()
@@ -79,7 +84,7 @@ func (addressbookInterface *AddressBookImpl) DeleteContact(contactId int) (bool,
 	return true, nil
 }
 
-func (addressbookInterface *AddressBookImpl) UpdateContact(contactId int, contact addressbook.Contact) *dbus.Error {
+func (addressbookInterface *AddressBookAdapter) UpdateContact(contactId int, contact addressbook.Contact) *dbus.Error {
 	if contactId >= 0 && contactId < len(addressbookInterface.Contacts()) {
 		addressbookInterface.Contacts()[contactId] = contact
 		fmt.Printf("UpdateContact: %v", contact)
@@ -89,42 +94,43 @@ func (addressbookInterface *AddressBookImpl) UpdateContact(contactId int, contac
 	return nil
 }
 
-func (addressbookInterface AddressBookImpl) IsLoadedAboutToBeSet(value bool) error {
+func (addressbookInterface AddressBookAdapter) IsLoadedAboutToBeSet(value bool) error {
 
 	return nil
 }
 
-func (addressbookInterface *AddressBookImpl) CurrentContactAboutToBeSet(value addressbook.Contact) error {
+func (addressbookInterface *AddressBookAdapter) CurrentContactAboutToBeSet(value addressbook.Contact) error {
 	return errors.New("No way")
 }
-
-func main() {
-	addressbookServiceName := "goqface.addressbook"
-
-	conn, err := dbus.SessionBus()
+func TestValidateStructsAsProp(t *testing.T) {
+	server, err := dbus.SessionBus()
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	defer conn.Close()
+	defer server.Close()
 
-	reply, err := conn.RequestName(addressbookServiceName, dbus.NameFlagDoNotQueue)
+	client, err := dbus.SessionBus()
 	if err != nil {
-		panic(err)
+		t.Fatal(err)
 	}
-	if reply != dbus.RequestNameReplyPrimaryOwner {
-		fmt.Fprintln(os.Stderr, "name already taken")
-		os.Exit(1)
+	defer client.Close()
+
+	addressbookAdapter := &AddressBookAdapter{&addressbook.AddressBook{Conn: server}}
+
+	addressbookAdapter.Init(addressbookAdapter)
+	addressbookAdapter.Export()
+
+	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy.Init()
+	addressBookProxy.ConnectToServer(server.Names()[0])
+
+	contacts := []addressbook.Contact{addressbook.Contact{1, "JohnDoe", "0198349343", addressbook.Friend}, addressbook.Contact{2, "MaxMusterman", "823439343", addressbook.Family}}
+	errSetProp := addressBookProxy.SetContacts(contacts)
+	if errSetProp != nil {
+		t.Errorf("call to remote object failed! %v", errSetProp)
 	}
 
-	addressbookImpl := &AddressBookImpl{&addressbook.AddressBook{Conn: conn}}
-
-	addressbookImpl.Init(addressbookImpl)
-	addressbookImpl.Export()
-
-	fmt.Println("Listening on serviceName: " + addressbookServiceName + " objectPath: " + string(addressbookImpl.ObjectPath) + "...")
-
-	c := make(chan *dbus.Signal)
-	conn.Signal(c)
-	for _ = range c {
+	if !reflect.DeepEqual(contacts, addressbookAdapter.Contacts()) {
+		t.Errorf("failed to set remote object prop! have %v want %v", addressbookAdapter.Contacts(), contacts)
 	}
 }
