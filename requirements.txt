@@ -1,3 +1,1 @@
-antlr4-python3-runtime
-qface
-jinja2==2.10.3
+qface==2.0.0
