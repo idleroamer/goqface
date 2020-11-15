@@ -1,6 +1,7 @@
-module AddressBook 1.0;
+@gomod: "github.com/idleroamer/goqface/tests/Phone/dependency/Tests/Dependency/AddressBook"
+module Tests.Dependency.AddressBook 1.0;
 
-@ipc-sync: true
+
 interface AddressBook {
     bool isLoaded;
     Contact currentContact;

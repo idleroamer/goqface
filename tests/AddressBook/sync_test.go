@@ -1,4 +1,4 @@
-package prop
+package addressbook
 
 import (
 	"errors"
@@ -8,11 +8,11 @@ import (
 	"testing"
 
 	"github.com/godbus/dbus/v5"
-	addressbook "github.com/idleroamer/goqface/test/AddressBook"
+	addressbook "github.com/idleroamer/goqface/tests/AddressBook/Tests/AddressBook"
 )
 
-//go:generate python3 ../codegen.py --input AddressBook.qface
-//go:generate gofmt -w AddressBook
+//go:generate python3 ../../codegen.py --input AddressBook.qface
+//go:generate gofmt -w Tests
 
 type Foo struct {
 	Id    int

@@ -1,0 +1,11 @@
+module Tests.Phone 1.0
+
+import Tests.Dependency.AddressBook 1.0
+
+interface Phone {
+    Tests.Dependency.AddressBook.Nested Foo(Tests.Dependency.AddressBook.Nested input)
+}
+
+struct Foo {
+    Tests.Dependency.AddressBook.ContactType type
+}
