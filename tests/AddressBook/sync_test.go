@@ -102,18 +102,16 @@ func (addressbookInterface AddressBookAdapter) IsLoadedAboutToBeSet(value bool) 
 func (addressbookInterface *AddressBookAdapter) CurrentContactAboutToBeSet(value addressbook.Contact) error {
 	return errors.New("No way")
 }
-func TestValidateStructsAsProp(t *testing.T) {
+func TestSetProperty(t *testing.T) {
 	server, err := dbus.SessionBus()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer server.Close()
 
 	client, err := dbus.SessionBus()
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer client.Close()
 
 	addressbookAdapter := &AddressBookAdapter{&addressbook.AddressBook{Conn: server}}
 
@@ -125,12 +123,47 @@ func TestValidateStructsAsProp(t *testing.T) {
 	addressBookProxy.ConnectToServer(server.Names()[0])
 
 	contacts := []addressbook.Contact{addressbook.Contact{1, "JohnDoe", "0198349343", addressbook.Friend}, addressbook.Contact{2, "MaxMusterman", "823439343", addressbook.Family}}
-	errSetProp := addressBookProxy.SetContacts(contacts)
+	errSetProp := addressBookProxy.Setcontacts(contacts)
 	if errSetProp != nil {
 		t.Errorf("call to remote object failed! %v", errSetProp)
 	}
 
 	if !reflect.DeepEqual(contacts, addressbookAdapter.Contacts()) {
 		t.Errorf("failed to set remote object prop! have %v want %v", addressbookAdapter.Contacts(), contacts)
+	}
+}
+
+func TestCallMethod(t *testing.T) {
+	server, err := dbus.SessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client, err := dbus.SessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addressbookAdapter := &AddressBookAdapter{&addressbook.AddressBook{Conn: server}}
+
+	addressbookAdapter.Init(addressbookAdapter)
+	addressbookAdapter.Export()
+
+	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy.Init()
+	addressBookProxy.ConnectToServer(server.Names()[0])
+
+	errCallMethod := addressBookProxy.CreateNewContact()
+	if errCallMethod != nil {
+		t.Errorf("call to remote object failed! %v", errCallMethod)
+	}
+
+	if !reflect.DeepEqual(addressBookProxy.Contacts(), addressbookAdapter.Contacts()) {
+		t.Errorf("Object value mismatch! have %v want %v", addressBookProxy.Contacts(), addressbookAdapter.Contacts())
+	}
+	// intentionally select a non-existing index
+	errCallMethod = addressBookProxy.SelectContact(1)
+	if errCallMethod == nil {
+		t.Errorf("remote func didn't return error as expected")
 	}
 }

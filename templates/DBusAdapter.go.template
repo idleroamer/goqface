@@ -114,7 +114,7 @@ func (c *{{interface.cap_name}}) Export() {
 }
 
 {% for property in interface.properties %}
-func (c *{{interface.cap_name}}) {{property.cap_name}} () {{property.go_type}} {
+func (c *{{interface.cap_name}}) {{property.cap_name}}() {{property.go_type}} {
     return  c.{{property.lower_name}}
 }
 // assigns a new value to {{property.name}}

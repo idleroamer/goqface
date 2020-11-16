@@ -18,7 +18,7 @@ import (
 type {{interface.proxy_name}} struct {
     SignalListener interface{}
 	{% for property in interface.properties %}
-	{{property.cap_name}} {{property.go_type}}
+	{{property.lower_name}} {{property.go_type}}
 	{% endfor %}
 	ready          bool
 	Conn           *dbus.Conn
@@ -92,15 +92,13 @@ func (c *{{interface.proxy_name}}) ConnectToServer(serviceName string) {
 func (c *{{interface.proxy_name}}) setProps(props map[string]dbus.Variant) {
     {% for property in interface.properties %}
     if val, ok := props["{{property.name}}"]; ok {
-        if val.Signature() == dbus.SignatureOf(c.{{property.cap_name}}) {
-            var t {{property.go_type}}
-            err := dbus.Store([]interface{}{val}, &t)
-            if err == nil && !reflect.DeepEqual(c.{{property.cap_name}}, t) {
-                c.{{property.cap_name}} = t
-                i, ok := c.SignalListener.(interface{ {{property.cap_name}}Changed({{property.go_type}}) })
-                if ok {
-                    i.{{property.cap_name}}Changed(c.{{property.cap_name}})
-                }
+        var t {{property.go_type}}
+        err := dbus.Store([]interface{}{val}, &t)
+        if err == nil && !reflect.DeepEqual(c.{{property.lower_name}}, t) {
+            c.{{property.lower_name}} = t
+            i, ok := c.SignalListener.(interface{ {{property.cap_name}}Changed({{property.go_type}}) })
+            if ok {
+                i.{{property.cap_name}}Changed(c.{{property.lower_name}})
             }
         }
     }
@@ -115,18 +113,21 @@ func (c *{{interface.proxy_name}}) setProps(props map[string]dbus.Variant) {
 }
 
 {% for property in interface.properties %}
+func (c *{{interface.proxy_name}}) {{property.cap_name}}() {{property.go_type}} {
+    return  c.{{property.lower_name}}
+}
 {% if not property.readonly %}
-func (c *{{interface.proxy_name}}) Set{{property.cap_name}}(value {{property.go_type}}) error {
+func (c *{{interface.proxy_name}}) Set{{property.name}}(value {{property.go_type}}) error {
     return c.RemoteObj.SetProperty("{{interface.qualified_name}}.{{property.name}}", dbus.MakeVariant(value))
 }
 {% endif %}
 {% endfor %}
 
 {% for operation in interface.operations %}
-func (c *{{interface.proxy_name}}) {{operation.cap_name}}({%- for parameter in operation.parameters -%}{{parameter.name}} {{parameter.go_type}},{%- endfor -%}) {% if operation.has_return_value %}(r {{operation.go_type}}, err error){% endif %}{
-    {% if operation.has_return_value %}err={% endif %}c.RemoteObj.Call("{{operation.name}}", 0, {%- for parameter in operation.parameters -%}{{parameter.name}},{%- endfor -%}){% if operation.has_return_value %}.Store(&r){% endif %}
+func (c *{{interface.proxy_name}}) {{operation.cap_name}}({%- for parameter in operation.parameters -%}{{parameter.name}} {{parameter.go_type}},{%- endfor -%}) ({% if operation.has_return_value %}r {{operation.go_type}}, {% endif %}err error){
+    err=c.RemoteObj.Call("{{operation.name}}", 0, {%- for parameter in operation.parameters -%}{{parameter.name}},{%- endfor -%}){% if operation.has_return_value %}.Store(&r){% else %}.Err{% endif %}
 
-    {% if operation.has_return_value %}return r, err{% endif %}
+    return {% if operation.has_return_value %}r, {% endif %}err
 }
 {% endfor %}
 
