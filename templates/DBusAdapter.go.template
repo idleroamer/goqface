@@ -41,8 +41,12 @@ type {{interface.cap_name}} struct {
 */
 func (c *{{interface.cap_name}}) Init(v {{interface.export_name}}) {
     c.concreteImpl = v
-    c.InterfaceName = "{{interface.qualified_name}}"
-    c.ObjectPath = "/{{interface.qualified_name.replace('.', '/')}}"
+	if c.InterfaceName == "" {
+    	c.InterfaceName = "{{interface.qualified_name}}"
+	}
+	if c.ObjectPath == "" {
+    	c.ObjectPath = "/{{interface.qualified_name.replace('.', '/')}}"
+	}
     c.MethodMapping = map[string]string{
     {% for operation in interface.operations %}
     "{{operation.cap_name}}": "{{operation.lower_name}}",
@@ -111,6 +115,17 @@ func (c *{{interface.cap_name}}) Export() {
 	}
 	c.Conn.Export(introspect.NewIntrospectable(n), c.ObjectPath,
 		"org.freedesktop.DBus.Introspectable")
+}
+
+func (c *{{interface.cap_name}}) Ready() bool {
+    return  c.ready
+}
+// assigns a new value to ready
+// updates the corresponding dbus property value
+// emits the PropertiesChanged signal with the new value if EmitTrue
+func (c *{{interface.cap_name}}) AssignReady (v bool) {
+    c.ready = v;
+    c.Props.SetMust(c.InterfaceName, "ready", v)
 }
 
 {% for property in interface.properties %}
