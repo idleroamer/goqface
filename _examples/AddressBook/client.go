@@ -11,31 +11,31 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
-type AddressBookSignalListener struct {
+type AddressBookSignalWatcher struct {
 }
 
-func (c *AddressBookSignalListener) OnContactCreated(contact addressbook.Contact) {
+func (c *AddressBookSignalWatcher) OnContactCreated(contact addressbook.Contact) {
 
 }
-func (c *AddressBookSignalListener) OnContactUpdateFailed(failureReason addressbook.FailureReason) {
+func (c *AddressBookSignalWatcher) OnContactUpdateFailed(failureReason addressbook.FailureReason) {
 
 }
-func (c *AddressBookSignalListener) OnContactDeleted(contact addressbook.Contact) {
+func (c *AddressBookSignalWatcher) OnContactDeleted(contact addressbook.Contact) {
 
 }
-func (c *AddressBookSignalListener) OnContactUpdatedTo(index int, contact addressbook.Contact) {
+func (c *AddressBookSignalWatcher) OnContactUpdatedTo(index int, contact addressbook.Contact) {
 
 }
-func (c *AddressBookSignalListener) IsLoadedChanged(isLoaded bool) {
+func (c *AddressBookSignalWatcher) IsLoadedChanged(isLoaded bool) {
 
 }
-func (c *AddressBookSignalListener) CurrentContactChanged(currentContact addressbook.Contact) {
+func (c *AddressBookSignalWatcher) CurrentContactChanged(currentContact addressbook.Contact) {
 
 }
-func (c *AddressBookSignalListener) ContactsChanged(contacts []addressbook.Contact) {
+func (c *AddressBookSignalWatcher) ContactsChanged(contacts []addressbook.Contact) {
 
 }
-func (c *AddressBookSignalListener) IntValuesChanged(intValues []int) {
+func (c *AddressBookSignalWatcher) IntValuesChanged(intValues []int) {
 
 }
 
@@ -46,11 +46,11 @@ func main() {
 	}
 	defer conn.Close()
 
-	signalListener := &AddressBookSignalListener{}
-	proxy := &addressbook.AddressBookProxy{Conn: conn, SignalListener: signalListener}
+	signalWatcher := &AddressBookSignalWatcher{}
+	proxy := &addressbook.AddressBookProxy{Conn: conn, SignalWatcher: signalWatcher}
 	proxy.Init()
 	proxy.ConnectToServer("goqface.addressbook")
-	proxy.SetContacts([]addressbook.Contact{addressbook.Contact{1, "JohnDoe", "TelNummer", 2}, addressbook.Contact{2, "MAxMusterman", "Handy", 234}})
+	proxy.Setcontacts([]addressbook.Contact{addressbook.Contact{1, "JohnDoe", "TelNummer", 2}, addressbook.Contact{2, "MAxMusterman", "Handy", 234}})
 
 	c := make(chan *dbus.Signal, 10)
 	for v := range c {

@@ -16,7 +16,7 @@ import (
 {% for interface in module.interfaces: %}
 
 type {{interface.proxy_name}} struct {
-    SignalListener interface{}
+    SignalWatcher interface{}
 	{% for property in interface.properties %}
 	{{property.lower_name}} {{property.go_type}}
 	{% endfor %}
@@ -29,7 +29,7 @@ type {{interface.proxy_name}} struct {
 
 }
 
-type {{interface.name}}SignalListener interface {
+type {{interface.name}}SignalWatcher interface {
     {% for signal in interface.signals %}
 	On{{signal.cap_name}}({%- for parameter in signal.parameters -%} {{parameter.name}} {{parameter.go_type}},{%- endfor -%})
     {% endfor %}
@@ -43,7 +43,7 @@ func (c *{{interface.proxy_name}}) Init() {
     c.ObjectPath = "/{{interface.qualified_name.replace('.', '/')}}"
 }
 
-func (c *{{interface.proxy_name}}) listenToSignals() {
+func (c *{{interface.proxy_name}}) watchSignals() {
     ch := make(chan *dbus.Signal)
 	c.Conn.Signal(ch)
 	for v := range ch {
@@ -58,7 +58,7 @@ func (c *{{interface.proxy_name}}) listenToSignals() {
 	    }
 	    {% for signal in interface.signals %}
 	    if (v.Name == "{{interface.qualified_name}}.{{signal.name}}") {
-            s, ok := c.SignalListener.(interface{ On{{signal.cap_name}}({%- for parameter in signal.parameters -%} {{parameter.go_type}},{%- endfor -%}) })
+            s, ok := c.SignalWatcher.(interface{ On{{signal.cap_name}}({%- for parameter in signal.parameters -%} {{parameter.go_type}},{%- endfor -%}) })
             if ok {
                 {% for param in signal.parameters %}
                 var arg{{loop.index}} {{param.go_type}}
@@ -86,7 +86,7 @@ func (c *{{interface.proxy_name}}) ConnectToServer(serviceName string) {
 {% for signal in interface.signals %}
 	c.RemoteObj.AddMatchSignal(c.InterfaceName, "{{signal.name}}")
 {% endfor %}
-    go c.listenToSignals()
+    go c.watchSignals()
 }
 
 func (c *{{interface.proxy_name}}) setProps(props map[string]dbus.Variant) {
@@ -96,7 +96,7 @@ func (c *{{interface.proxy_name}}) setProps(props map[string]dbus.Variant) {
         err := dbus.Store([]interface{}{val}, &t)
         if err == nil && !reflect.DeepEqual(c.{{property.lower_name}}, t) {
             c.{{property.lower_name}} = t
-            i, ok := c.SignalListener.(interface{ {{property.cap_name}}Changed({{property.go_type}}) })
+            i, ok := c.SignalWatcher.(interface{ {{property.cap_name}}Changed({{property.go_type}}) })
             if ok {
                 i.{{property.cap_name}}Changed(c.{{property.lower_name}})
             }
@@ -105,7 +105,7 @@ func (c *{{interface.proxy_name}}) setProps(props map[string]dbus.Variant) {
     {% endfor %}
     if val, ok := props["ready"]; ok {
         dbus.Store([]interface{}{val}, &c.ready)
-        i, ok := c.SignalListener.(interface{ ReadyChanged(bool) })
+        i, ok := c.SignalWatcher.(interface{ ReadyChanged(bool) })
         if ok {
             i.ReadyChanged(c.ready)
         }
