@@ -6,7 +6,7 @@ interface AddressBook {
     Contact currentContact;
     list<Contact> contacts;
     list<int> intValues;
-    readonly map<Contact> mapOfC;
+    readonly map<Contact> mapOfContacts;
     Nested nested;
 
     void createNewContact();

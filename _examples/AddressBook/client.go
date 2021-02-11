@@ -38,6 +38,15 @@ func (c *AddressBookSignalWatcher) ContactsChanged(contacts []addressbook.Contac
 func (c *AddressBookSignalWatcher) IntValuesChanged(intValues []int) {
 
 }
+func (c *AddressBookSignalWatcher) MapOfContactChanged(mapOfC map[string]addressbook.Contact) {
+
+}
+func (c *AddressBookSignalWatcher) NestedChanged(nested addressbook.Nested) {
+
+}
+func (c *AddressBookSignalWatcher) ReadyChanged(ready bool) {
+
+}
 
 func main() {
 	conn, err := dbus.SessionBus()
@@ -47,8 +56,8 @@ func main() {
 	defer conn.Close()
 
 	signalWatcher := &AddressBookSignalWatcher{}
-	proxy := &addressbook.AddressBookProxy{Conn: conn, SignalWatcher: signalWatcher}
-	proxy.Init()
+	proxy := &addressbook.AddressBookProxy{Conn: conn}
+	proxy.Init(signalWatcher)
 	proxy.ConnectToServer("goqface.addressbook")
 	proxy.Setcontacts([]addressbook.Contact{addressbook.Contact{1, "JohnDoe", "TelNummer", 2}, addressbook.Contact{2, "MAxMusterman", "Handy", 234}})
 

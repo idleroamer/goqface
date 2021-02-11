@@ -20,6 +20,11 @@ type {{interface.export_name}} interface {
 {% endif %}
 {{operation.cap_name}}({%- for parameter in operation.parameters -%}{{parameter.name}} {{parameter.go_type}},{%- endfor -%}) ({% if operation.has_return_value %}{{operation.go_type}}, {% endif %}*dbus.Error)
 {% endfor %}
+{% for property in interface.properties %}
+{% if not property.readonly %}
+{{property.cap_name}}AboutToBeSet({{property.name}} {{property.go_type}}) error
+{% endif %}
+{% endfor %}
 }
 
 type {{interface.cap_name}} struct {
@@ -150,11 +155,8 @@ func set{{property.lower_name}}Callback(c *{{interface.cap_name}}) func(change *
 		if err := dbus.Store([]interface{}{change.Value}, &value); err != nil {
 			return dbus.MakeFailedError(err)
 		}
-		i, ok := c.concreteImpl.(interface{ {{property.cap_name}}AboutToBeSet({{property.go_type}}) error })
-		if ok {
-			if err := i.{{property.cap_name}}AboutToBeSet(value); err != nil {
-			    return dbus.MakeFailedError(err)
-			}
+		if err := c.concreteImpl.{{property.cap_name}}AboutToBeSet(value); err != nil {
+		    return dbus.MakeFailedError(err)
 		}
 		c.{{property.lower_name}} = value
 		return nil

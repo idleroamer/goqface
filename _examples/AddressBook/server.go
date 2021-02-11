@@ -89,13 +89,24 @@ func (addressbookInterface *AddressBookImpl) UpdateContact(contactId int, contac
 	return nil
 }
 
-func (addressbookInterface AddressBookImpl) IsLoadedAboutToBeSet(value bool) error {
+func (addressbookInterface *AddressBookImpl) CurrentContactAboutToBeSet(value addressbook.Contact) error {
+	return errors.New("No way")
+}
 
+func (addressbookInterface *AddressBookImpl) IsLoadedAboutToBeSet(isLoaded bool) error {
 	return nil
 }
 
-func (addressbookInterface *AddressBookImpl) CurrentContactAboutToBeSet(value addressbook.Contact) error {
-	return errors.New("No way")
+func (addressbookInterface *AddressBookImpl) ContactsAboutToBeSet(contacts []addressbook.Contact) error {
+	return nil
+}
+
+func (addressbookInterface *AddressBookImpl) IntValuesAboutToBeSet(intValues []int) error {
+	return nil
+}
+
+func (addressbookInterface *AddressBookImpl) NestedAboutToBeSet(nested addressbook.Nested) error {
+	return nil
 }
 
 func main() {
