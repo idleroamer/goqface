@@ -11,40 +11,41 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
-type AddressBookSignalWatcher struct {
+type AddressBookProxyImpl struct {
+	*addressbook.AddressBookProxy
 }
 
-func (c *AddressBookSignalWatcher) OnContactCreated(contact addressbook.Contact) {
+func (c *AddressBookProxyImpl) OnContactCreated(contact addressbook.Contact) {
 
 }
-func (c *AddressBookSignalWatcher) OnContactUpdateFailed(failureReason addressbook.FailureReason) {
+func (c *AddressBookProxyImpl) OnContactUpdateFailed(failureReason addressbook.FailureReason) {
 
 }
-func (c *AddressBookSignalWatcher) OnContactDeleted(contact addressbook.Contact) {
+func (c *AddressBookProxyImpl) OnContactDeleted(contact addressbook.Contact) {
 
 }
-func (c *AddressBookSignalWatcher) OnContactUpdatedTo(index int, contact addressbook.Contact) {
+func (c *AddressBookProxyImpl) OnContactUpdatedTo(index int, contact addressbook.Contact) {
 
 }
-func (c *AddressBookSignalWatcher) IsLoadedChanged(isLoaded bool) {
+func (c *AddressBookProxyImpl) IsLoadedChanged(isLoaded bool) {
 
 }
-func (c *AddressBookSignalWatcher) CurrentContactChanged(currentContact addressbook.Contact) {
+func (c *AddressBookProxyImpl) CurrentContactChanged(currentContact addressbook.Contact) {
 
 }
-func (c *AddressBookSignalWatcher) ContactsChanged(contacts []addressbook.Contact) {
+func (c *AddressBookProxyImpl) ContactsChanged(contacts []addressbook.Contact) {
 
 }
-func (c *AddressBookSignalWatcher) IntValuesChanged(intValues []int) {
+func (c *AddressBookProxyImpl) IntValuesChanged(intValues []int) {
 
 }
-func (c *AddressBookSignalWatcher) MapOfContactChanged(mapOfC map[string]addressbook.Contact) {
+func (c *AddressBookProxyImpl) MapOfContactsChanged(mapOfC map[string]addressbook.Contact) {
 
 }
-func (c *AddressBookSignalWatcher) NestedChanged(nested addressbook.Nested) {
+func (c *AddressBookProxyImpl) NestedChanged(nested addressbook.Nested) {
 
 }
-func (c *AddressBookSignalWatcher) ReadyChanged(ready bool) {
+func (c *AddressBookProxyImpl) ReadyChanged(ready bool) {
 
 }
 
@@ -55,9 +56,8 @@ func main() {
 	}
 	defer conn.Close()
 
-	signalWatcher := &AddressBookSignalWatcher{}
-	proxy := &addressbook.AddressBookProxy{Conn: conn}
-	proxy.Init(signalWatcher)
+	proxy := &AddressBookProxyImpl{&addressbook.AddressBookProxy{Conn: conn}}
+	proxy.Init(proxy)
 	proxy.ConnectToServer("goqface.addressbook")
 	proxy.Setcontacts([]addressbook.Contact{addressbook.Contact{1, "JohnDoe", "TelNummer", 2}, addressbook.Contact{2, "MAxMusterman", "Handy", 234}})
 

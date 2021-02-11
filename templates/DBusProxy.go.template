@@ -15,8 +15,18 @@ import (
 
 {% for interface in module.interfaces: %}
 
+type {{interface.name}}SignalsInterface interface {
+    {% for signal in interface.signals %}
+	On{{signal.cap_name}}({%- for parameter in signal.parameters -%} {{parameter.name}} {{parameter.go_type}},{%- endfor -%})
+    {% endfor %}
+    {% for property in interface.properties %}
+    {{property.cap_name}}Changed({{property.name}} {{property.go_type}})
+    {% endfor %}
+    ReadyChanged(ready bool)
+}
+
 type {{interface.proxy_name}} struct {
-    signalWatcher {{interface.name}}SignalWatcher
+    signals {{interface.name}}SignalsInterface
 	{% for property in interface.properties %}
 	{{property.lower_name}} {{property.go_type}}
 	{% endfor %}
@@ -29,18 +39,8 @@ type {{interface.proxy_name}} struct {
 
 }
 
-type {{interface.name}}SignalWatcher interface {
-    {% for signal in interface.signals %}
-	On{{signal.cap_name}}({%- for parameter in signal.parameters -%} {{parameter.name}} {{parameter.go_type}},{%- endfor -%})
-    {% endfor %}
-    {% for property in interface.properties %}
-    {{property.cap_name}}Changed({{property.name}} {{property.go_type}})
-    {% endfor %}
-    ReadyChanged(ready bool)
-}
-
-func (c *{{interface.proxy_name}}) Init(v {{interface.name}}SignalWatcher) {
-    c.signalWatcher = v
+func (c *{{interface.proxy_name}}) Init(v {{interface.name}}SignalsInterface) {
+    c.signals = v
     c.InterfaceName = "{{interface.qualified_name}}"
     c.ObjectPath = "/{{interface.qualified_name.replace('.', '/')}}"
 }
@@ -65,7 +65,7 @@ func (c *{{interface.proxy_name}}) watchSignals() {
             {% endfor %}
             err := dbus.Store(v.Body, {%- for parameter in signal.parameters -%} &arg{{loop.index}},{%- endfor -%})
             if err == nil {
-                c.signalWatcher.On{{signal.cap_name}}({%- for parameter in signal.parameters -%} arg{{loop.index}},{%- endfor -%})
+                c.signals.On{{signal.cap_name}}({%- for parameter in signal.parameters -%} arg{{loop.index}},{%- endfor -%})
             }
 	    }
         {% endfor %}
@@ -95,13 +95,13 @@ func (c *{{interface.proxy_name}}) setProps(props map[string]dbus.Variant) {
         err := dbus.Store([]interface{}{val}, &t)
         if err == nil && !reflect.DeepEqual(c.{{property.lower_name}}, t) {
             c.{{property.lower_name}} = t
-            c.signalWatcher.{{property.cap_name}}Changed(c.{{property.lower_name}})
+            c.signals.{{property.cap_name}}Changed(c.{{property.lower_name}})
         }
     }
     {% endfor %}
     if val, ok := props["ready"]; ok {
         dbus.Store([]interface{}{val}, &c.ready)
-        c.signalWatcher.ReadyChanged(c.ready)
+        c.signals.ReadyChanged(c.ready)
     }
 }
 

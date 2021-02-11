@@ -115,40 +115,41 @@ func (addressbookInterface *AddressBookAdapter) NestedAboutToBeSet(nested addres
 	return nil
 }
 
-type AddressBookSignalWatcher struct {
+type AddressBookProxyImpl struct {
+	*addressbook.AddressBookProxy
 }
 
-func (c *AddressBookSignalWatcher) OnContactCreated(contact addressbook.Contact) {
+func (c *AddressBookProxyImpl) OnContactCreated(contact addressbook.Contact) {
 
 }
-func (c *AddressBookSignalWatcher) OnContactUpdateFailed(failureReason addressbook.FailureReason) {
+func (c *AddressBookProxyImpl) OnContactUpdateFailed(failureReason addressbook.FailureReason) {
 
 }
-func (c *AddressBookSignalWatcher) OnContactDeleted(contact addressbook.Contact) {
+func (c *AddressBookProxyImpl) OnContactDeleted(contact addressbook.Contact) {
 
 }
-func (c *AddressBookSignalWatcher) OnContactUpdatedTo(index int, contact addressbook.Contact) {
+func (c *AddressBookProxyImpl) OnContactUpdatedTo(index int, contact addressbook.Contact) {
 
 }
-func (c *AddressBookSignalWatcher) IsLoadedChanged(isLoaded bool) {
+func (c *AddressBookProxyImpl) IsLoadedChanged(isLoaded bool) {
 
 }
-func (c *AddressBookSignalWatcher) CurrentContactChanged(currentContact addressbook.Contact) {
+func (c *AddressBookProxyImpl) CurrentContactChanged(currentContact addressbook.Contact) {
 
 }
-func (c *AddressBookSignalWatcher) ContactsChanged(contacts []addressbook.Contact) {
+func (c *AddressBookProxyImpl) ContactsChanged(contacts []addressbook.Contact) {
 
 }
-func (c *AddressBookSignalWatcher) IntValuesChanged(intValues []int) {
+func (c *AddressBookProxyImpl) IntValuesChanged(intValues []int) {
 
 }
-func (c *AddressBookSignalWatcher) MapOfContactChanged(mapOfC map[string]addressbook.Contact) {
+func (c *AddressBookProxyImpl) MapOfContactsChanged(mapOfC map[string]addressbook.Contact) {
 
 }
-func (c *AddressBookSignalWatcher) NestedChanged(nested addressbook.Nested) {
+func (c *AddressBookProxyImpl) NestedChanged(nested addressbook.Nested) {
 
 }
-func (c *AddressBookSignalWatcher) ReadyChanged(ready bool) {
+func (c *AddressBookProxyImpl) ReadyChanged(ready bool) {
 
 }
 
@@ -168,9 +169,8 @@ func TestSetProperty(t *testing.T) {
 	addressbookAdapter.Init(addressbookAdapter)
 	addressbookAdapter.Export()
 
-	signalWatcher := &AddressBookSignalWatcher{}
-	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
-	addressBookProxy.Init(signalWatcher)
+	addressBookProxy := &AddressBookProxyImpl{&addressbook.AddressBookProxy{Conn: client}}
+	addressBookProxy.Init(addressBookProxy)
 	addressBookProxy.ConnectToServer(server.Names()[0])
 
 	contacts := []addressbook.Contact{addressbook.Contact{1, "JohnDoe", "0198349343", addressbook.Friend}, addressbook.Contact{2, "MaxMusterman", "823439343", addressbook.Family}}
@@ -200,9 +200,8 @@ func TestCallMethod(t *testing.T) {
 	addressbookAdapter.Init(addressbookAdapter)
 	addressbookAdapter.Export()
 
-	signalWatcher := &AddressBookSignalWatcher{}
-	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
-	addressBookProxy.Init(signalWatcher)
+	addressBookProxy := &AddressBookProxyImpl{&addressbook.AddressBookProxy{Conn: client}}
+	addressBookProxy.Init(addressBookProxy)
 	addressBookProxy.ConnectToServer(server.Names()[0])
 
 	errCallMethod := addressBookProxy.CreateNewContact()
