@@ -48,10 +48,6 @@ def lower_name(self):
     return ' '.join(word[0].lower() + word[1:] for word in self.name.split())
 
 
-def export_name(self):
-    return cap_name(self) + "Interface"
-
-
 def proxy_name(self):
     return cap_name(self) + "Proxy"
 
@@ -124,13 +120,13 @@ setattr(qface.idl.domain.Operation, 'lower_name', property(lower_name))
 
 setattr(qface.idl.domain.Interface, 'cap_name', property(cap_name))
 setattr(qface.idl.domain.Interface, 'lower_name', property(lower_name))
-setattr(qface.idl.domain.Interface, 'export_name', property(export_name))
 setattr(qface.idl.domain.Interface, 'proxy_name', property(proxy_name))
 
 setattr(qface.idl.domain.Property, 'lower_name', property(lower_name))
 setattr(qface.idl.domain.Property, 'cap_name', property(cap_name))
 
 setattr(qface.idl.domain.Signal, 'cap_name', property(cap_name))
+setattr(qface.idl.domain.Signal, 'lower_name', property(lower_name))
 setattr(qface.idl.domain.Signal, 'param_size', property(param_size))
 
 

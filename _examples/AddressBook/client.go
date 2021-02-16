@@ -11,41 +11,31 @@ import (
 	"github.com/godbus/dbus/v5"
 )
 
-type AddressBookProxyImpl struct {
-	*addressbook.AddressBookProxy
+type AddressBookProxySignals struct {
 }
 
-func (c *AddressBookProxyImpl) OnContactCreated(contact addressbook.Contact) {
+func (c *AddressBookProxySignals) OnContactCreated(contact addressbook.Contact) {
 
 }
-func (c *AddressBookProxyImpl) OnContactUpdateFailed(failureReason addressbook.FailureReason) {
+func (c *AddressBookProxySignals) OnContactUpdateFailed(failureReason addressbook.FailureReason) {
 
 }
-func (c *AddressBookProxyImpl) OnContactDeleted(contact addressbook.Contact) {
+func (c *AddressBookProxySignals) OnContactDeleted(contact addressbook.Contact) {
 
 }
-func (c *AddressBookProxyImpl) OnContactUpdatedTo(index int, contact addressbook.Contact) {
+func (c *AddressBookProxySignals) OnContactUpdatedTo(index int, contact addressbook.Contact) {
 
 }
-func (c *AddressBookProxyImpl) IsLoadedChanged(isLoaded bool) {
+func (c *AddressBookProxySignals) IsLoadedChanged(isLoaded bool) {
 
 }
-func (c *AddressBookProxyImpl) CurrentContactChanged(currentContact addressbook.Contact) {
+func (c *AddressBookProxySignals) CurrentContactChanged(currentContact addressbook.Contact) {
 
 }
-func (c *AddressBookProxyImpl) ContactsChanged(contacts []addressbook.Contact) {
-
+func (c *AddressBookProxySignals) OnContactsChanged(contacts []addressbook.Contact) {
+	fmt.Println(contacts)
 }
-func (c *AddressBookProxyImpl) IntValuesChanged(intValues []int) {
-
-}
-func (c *AddressBookProxyImpl) MapOfContactsChanged(mapOfC map[string]addressbook.Contact) {
-
-}
-func (c *AddressBookProxyImpl) NestedChanged(nested addressbook.Nested) {
-
-}
-func (c *AddressBookProxyImpl) ReadyChanged(ready bool) {
+func (c *AddressBookProxySignals) OnReadyChanged(ready bool) {
 
 }
 
@@ -56,9 +46,11 @@ func main() {
 	}
 	defer conn.Close()
 
-	proxy := &AddressBookProxyImpl{&addressbook.AddressBookProxy{Conn: conn}}
-	proxy.Init(proxy)
+	addressBookSignalHandler := &AddressBookProxySignals{}
+	proxy := &addressbook.AddressBookProxy{Conn: conn}
+	proxy.Init()
 	proxy.ConnectToServer("goqface.addressbook")
+	proxy.AddContactsChangedObserver(addressBookSignalHandler)
 	proxy.Setcontacts([]addressbook.Contact{addressbook.Contact{1, "JohnDoe", "TelNummer", 2}, addressbook.Contact{2, "MAxMusterman", "Handy", 234}})
 
 	c := make(chan *dbus.Signal, 10)

@@ -15,7 +15,7 @@ import (
 )
 
 type AddressBookImpl struct {
-	*addressbook.AddressBook
+	*addressbook.AddressBookAdapter
 }
 
 var Idx int
@@ -127,7 +127,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	addressbookImpl := &AddressBookImpl{&addressbook.AddressBook{Conn: conn}}
+	addressbookImpl := &AddressBookImpl{&addressbook.AddressBookAdapter{Conn: conn}}
 
 	addressbookImpl.Init(addressbookImpl)
 	addressbookImpl.Export()

@@ -3,7 +3,11 @@ package {{module.module.name_parts[-1]|lower}}
 import (
 	"reflect"
 	"strings"
-
+{% for interface in module.interfaces: %}
+{% if interface.properties %}
+	"log"
+{% endif %}
+{% endfor %}
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/introspect"
 	"github.com/godbus/dbus/v5/prop"
@@ -13,25 +17,26 @@ import (
 )
 
 {% for interface in module.interfaces: %}
-type {{interface.export_name}} interface {
+type {{interface.cap_name}} interface {
 {% for operation in interface.operations %}
 {% if operation.comment %}
 {{operation.comment}}
 {% endif %}
 {{operation.cap_name}}({%- for parameter in operation.parameters -%}{{parameter.name}} {{parameter.go_type}},{%- endfor -%}) ({% if operation.has_return_value %}{{operation.go_type}}, {% endif %}*dbus.Error)
 {% endfor %}
-{% for property in interface.properties %}
-{% if not property.readonly %}
-{{property.cap_name}}AboutToBeSet({{property.name}} {{property.go_type}}) error
-{% endif %}
-{% endfor %}
 }
 
-type {{interface.cap_name}} struct {
-    concreteImpl {{interface.export_name}}
+type {{interface.cap_name}}Adapter struct {
+    concreteImpl {{interface.cap_name}}
 	{% for property in interface.properties %}
 	{{property.lower_name}} {{property.go_type}}
 	{% endfor %}
+	{% for property in interface.properties %}
+    {% if not property.readonly %}
+    set{{property.cap_name}}Handler interface{ {{property.cap_name}}AboutToBeSet({{property.name}} {{property.go_type}}) error}
+    {{property.lower_name}}ChangedObservers []interface{ On{{property.cap_name}}Changed( {{property.name}} {{property.go_type}})}
+    {% endif %}
+    {% endfor %}
 	ready          bool // to be used to query readiness of the server
 	Conn           *dbus.Conn
 	InterfaceName  string
@@ -44,7 +49,7 @@ type {{interface.cap_name}} struct {
 /*
 * init initializes the struct with the proper values
 */
-func (c *{{interface.cap_name}}) Init(v {{interface.export_name}}) {
+func (c *{{interface.cap_name}}Adapter) Init(v {{interface.cap_name}}) {
     c.concreteImpl = v
 	if c.InterfaceName == "" {
     	c.InterfaceName = "{{interface.qualified_name}}"
@@ -87,7 +92,7 @@ func (c *{{interface.cap_name}}) Init(v {{interface.export_name}}) {
 	}
 }
 
-func (c *{{interface.cap_name}}) Export() {
+func (c *{{interface.cap_name}}Adapter) Export() {
     c.Conn.ExportWithMap(c.concreteImpl, c.MethodMapping, c.ObjectPath, c.InterfaceName)
 	props, err := prop.Export(c.Conn, c.ObjectPath, c.PropsSpec)
 	if err != nil {
@@ -122,43 +127,53 @@ func (c *{{interface.cap_name}}) Export() {
 		"org.freedesktop.DBus.Introspectable")
 }
 
-func (c *{{interface.cap_name}}) Ready() bool {
+func (c *{{interface.cap_name}}Adapter) Ready() bool {
     return  c.ready
 }
 // assigns a new value to ready
 // updates the corresponding dbus property value
 // emits the PropertiesChanged signal with the new value if EmitTrue
-func (c *{{interface.cap_name}}) AssignReady (v bool) {
+func (c *{{interface.cap_name}}Adapter) AssignReady (v bool) {
     c.ready = v;
     c.Props.SetMust(c.InterfaceName, "ready", v)
 }
 
 {% for property in interface.properties %}
-func (c *{{interface.cap_name}}) {{property.cap_name}}() {{property.go_type}} {
+func (c *{{interface.cap_name}}Adapter) {{property.cap_name}}() {{property.go_type}} {
     return  c.{{property.lower_name}}
 }
 // assigns a new value to {{property.name}}
 // updates the corresponding dbus property value
 // emits the PropertiesChanged signal with the new value if EmitTrue
-func (c *{{interface.cap_name}}) Assign{{property.cap_name}} (v {{property.go_type}}) {
+func (c *{{interface.cap_name}}Adapter) Assign{{property.cap_name}} (v {{property.go_type}}) {
     c.{{property.lower_name}} = v;
     c.Props.SetMust(c.InterfaceName, "{{property.name}}", v)
 }
 
 {% if not property.readonly %}
+func (c *{{interface.cap_name}}Adapter) Set{{property.cap_name}}Handler(handler interface{ {{property.cap_name}}AboutToBeSet({{property.name}} {{property.go_type}}) error}) {
+    c.set{{property.cap_name}}Handler = handler;
+}
 // creates the Callback function to hook into SetProperty sequence
 // created Callback function changes the {{interface.lower_name}}.{{property.name}}
 // calls {{property.name}}AboutToBeSet of concreteImpl, given implemented, to override the default behaviour
-func set{{property.lower_name}}Callback(c *{{interface.cap_name}}) func(change *prop.Change) *dbus.Error {
+func set{{property.lower_name}}Callback(c *{{interface.cap_name}}Adapter) func(change *prop.Change) *dbus.Error {
     return func(change *prop.Change) *dbus.Error {
         var value {{property.go_type}}
 		if err := dbus.Store([]interface{}{change.Value}, &value); err != nil {
 			return dbus.MakeFailedError(err)
+		} else {
+			log.Print(err)
 		}
-		if err := c.concreteImpl.{{property.cap_name}}AboutToBeSet(value); err != nil {
-		    return dbus.MakeFailedError(err)
+		if c.set{{property.cap_name}}Handler != nil {
+		    if err := c.set{{property.cap_name}}Handler.{{property.cap_name}}AboutToBeSet(value); err != nil {
+		        return dbus.MakeFailedError(err)
+		    }
 		}
 		c.{{property.lower_name}} = value
+		for _, observer := range c.{{property.lower_name}}ChangedObservers {
+            go observer.On{{property.cap_name}}Changed(value)
+        }
 		return nil
 	}
 }
@@ -166,14 +181,32 @@ func set{{property.lower_name}}Callback(c *{{interface.cap_name}}) func(change *
 {% endif %}
 {% endfor %}
 
+{% for property in interface.properties %}
+{% if not property.readonly %}
+func (c *{{interface.cap_name}}Adapter) Add{{property.cap_name}}ChangedObserver(observer interface{ On{{property.cap_name}}Changed({{property.go_type}}) }) {
+    c.{{property.lower_name}}ChangedObservers = append(c.{{property.lower_name}}ChangedObservers, observer)
+}
+func (c *{{interface.cap_name}}Adapter) Remove{{property.cap_name}}ChangedObserver(observer interface{ }) bool {
+    found := false
+    for i := range c.{{property.lower_name}}ChangedObservers {
+        if c.{{property.lower_name}}ChangedObservers[i] == observer {
+            c.{{property.lower_name}}ChangedObservers = append(c.{{property.lower_name}}ChangedObservers[:i], c.{{property.lower_name}}ChangedObservers[i+1:]...)
+            found = true
+        }
+     }
+     return found
+}
+{% endif %}
+{% endfor %}
+
 {% for signal in interface.signals %}
-func (c *{{interface.cap_name}}) {{signal.cap_name}}({%- for parameter in signal.parameters -%} {{parameter.name}} {{parameter.go_type}},{%- endfor -%}) {
+func (c *{{interface.cap_name}}Adapter) {{signal.cap_name}}({%- for parameter in signal.parameters -%} {{parameter.name}} {{parameter.go_type}},{%- endfor -%}) {
 	c.Conn.Emit(c.ObjectPath, c.InterfaceName+".{{signal}}",
     {%- for parameter in signal.parameters -%}{{parameter.name}},{%- endfor -%})
 }
 {% endfor %}
 
-func (c *{{interface.cap_name}}) signalsIntrospection() []introspect.Signal {
+func (c *{{interface.cap_name}}Adapter) signalsIntrospection() []introspect.Signal {
 	t := reflect.TypeOf(c)
 	signals := map[string][]string{ {% for signal in interface.signals %}"{{signal.name}}":{
 	{%- for parameter in signal.parameters -%}"{{parameter.name}}",{%- endfor -%} },
