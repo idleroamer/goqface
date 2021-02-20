@@ -118,7 +118,7 @@ func (c *{{interface.proxy_name}}) {{property.cap_name}}() {{property.go_type}} 
     return  c.{{property.lower_name}}
 }
 {% if not property.readonly %}
-func (c *{{interface.proxy_name}}) Set{{property.name}}(value {{property.go_type}}) error {
+func (c *{{interface.proxy_name}}) Set{{property.cap_name}}(value {{property.go_type}}) error {
     return c.RemoteObj.SetProperty("{{interface.qualified_name}}.{{property.name}}", dbus.MakeVariant(value))
 }
 {% endif %}

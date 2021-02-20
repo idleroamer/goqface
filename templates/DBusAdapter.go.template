@@ -27,13 +27,13 @@ type {{interface.cap_name}} interface {
 }
 
 type {{interface.cap_name}}Adapter struct {
-    concreteImpl {{interface.cap_name}}
+    interfaceImpl {{interface.cap_name}}
 	{% for property in interface.properties %}
 	{{property.lower_name}} {{property.go_type}}
 	{% endfor %}
 	{% for property in interface.properties %}
     {% if not property.readonly %}
-    set{{property.cap_name}}Handler interface{ {{property.cap_name}}AboutToBeSet({{property.name}} {{property.go_type}}) error}
+    set{{property.cap_name}}Callback interface{ Set{{property.cap_name}}({{property.name}} {{property.go_type}}) error}
     {{property.lower_name}}ChangedObservers []interface{ On{{property.cap_name}}Changed( {{property.name}} {{property.go_type}})}
     {% endif %}
     {% endfor %}
@@ -50,7 +50,7 @@ type {{interface.cap_name}}Adapter struct {
 * init initializes the struct with the proper values
 */
 func (c *{{interface.cap_name}}Adapter) Init(v {{interface.cap_name}}) {
-    c.concreteImpl = v
+    c.interfaceImpl = v
 	if c.InterfaceName == "" {
     	c.InterfaceName = "{{interface.qualified_name}}"
 	}
@@ -77,7 +77,7 @@ func (c *{{interface.cap_name}}Adapter) Init(v {{interface.cap_name}}) {
                 {% if property.readonly %}
                 Callback: nil,
                 {% else %}
-                Callback: set{{property.lower_name}}Callback(c),
+                Callback: set{{property.cap_name}}Callback(c),
                 {% endif %}
             },
             {% endfor %}
@@ -93,13 +93,13 @@ func (c *{{interface.cap_name}}Adapter) Init(v {{interface.cap_name}}) {
 }
 
 func (c *{{interface.cap_name}}Adapter) Export() {
-    c.Conn.ExportWithMap(c.concreteImpl, c.MethodMapping, c.ObjectPath, c.InterfaceName)
+    c.Conn.ExportWithMap(c.interfaceImpl, c.MethodMapping, c.ObjectPath, c.InterfaceName)
 	props, err := prop.Export(c.Conn, c.ObjectPath, c.PropsSpec)
 	if err != nil {
 		panic(err)
 	}
 	c.Props = props
-	methods := introspect.Methods(c.concreteImpl) // returns methods in uppercase, maybe a PR to godbus to have MethodsWihtMapping
+	methods := introspect.Methods(c.interfaceImpl)
     i := 0
     for _, method := range methods {
         mappedName, ok := c.MethodMapping[method.Name]
@@ -151,13 +151,13 @@ func (c *{{interface.cap_name}}Adapter) Assign{{property.cap_name}} (v {{propert
 }
 
 {% if not property.readonly %}
-func (c *{{interface.cap_name}}Adapter) Set{{property.cap_name}}Handler(handler interface{ {{property.cap_name}}AboutToBeSet({{property.name}} {{property.go_type}}) error}) {
-    c.set{{property.cap_name}}Handler = handler;
+func (c *{{interface.cap_name}}Adapter) Set{{property.cap_name}}Callback(callback interface{ Set{{property.cap_name}}({{property.name}} {{property.go_type}}) error}) {
+    c.set{{property.cap_name}}Callback = callback;
 }
 // creates the Callback function to hook into SetProperty sequence
 // created Callback function changes the {{interface.lower_name}}.{{property.name}}
-// calls {{property.name}}AboutToBeSet of concreteImpl, given implemented, to override the default behaviour
-func set{{property.lower_name}}Callback(c *{{interface.cap_name}}Adapter) func(change *prop.Change) *dbus.Error {
+// calls Set{{property.name}}, given callback set, to check the value
+func set{{property.cap_name}}Callback(c *{{interface.cap_name}}Adapter) func(change *prop.Change) *dbus.Error {
     return func(change *prop.Change) *dbus.Error {
         var value {{property.go_type}}
 		if err := dbus.Store([]interface{}{change.Value}, &value); err != nil {
@@ -165,8 +165,8 @@ func set{{property.lower_name}}Callback(c *{{interface.cap_name}}Adapter) func(c
 		} else {
 			log.Print(err)
 		}
-		if c.set{{property.cap_name}}Handler != nil {
-		    if err := c.set{{property.cap_name}}Handler.{{property.cap_name}}AboutToBeSet(value); err != nil {
+		if c.set{{property.cap_name}}Callback != nil {
+		    if err := c.set{{property.cap_name}}Callback.Set{{property.cap_name}}(value); err != nil {
 		        return dbus.MakeFailedError(err)
 		    }
 		}

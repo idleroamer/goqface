@@ -25,7 +25,12 @@ type AddressBookImpl struct {
 	*addressbook.AddressBookAdapter
 }
 
-type AddressBookProxyObserver struct {
+type AddressBookClient struct {
+	wg              *sync.WaitGroup
+	contactsChanged int
+}
+
+type AddressBookServerObserver struct {
 	wg              *sync.WaitGroup
 	contactsChanged int
 }
@@ -101,64 +106,25 @@ func (c *AddressBookImpl) UpdateContact(contactId int, contact addressbook.Conta
 	return nil
 }
 
-func (c AddressBookImpl) IsLoadedAboutToBeSet(value bool) error {
-
+func (c *AddressBookImpl) SetCurrentContact(value addressbook.Contact) error {
+	if value.Idx == -1 {
+		return errors.New("Wrong value")
+	}
 	return nil
 }
 
-func (c *AddressBookImpl) CurrentContactAboutToBeSet(value addressbook.Contact) error {
-	return errors.New("No way")
-}
-
-func (c *AddressBookImpl) ContactsAboutToBeSet(contacts []addressbook.Contact) error {
-	return nil
-}
-
-func (c *AddressBookImpl) IntValuesAboutToBeSet(intValues []int) error {
-	return nil
-}
-
-func (c *AddressBookImpl) NestedAboutToBeSet(nested addressbook.Nested) error {
-	return nil
-}
-
-func (c *AddressBookProxyObserver) OnContactCreated(contact addressbook.Contact) {
-
-}
-func (c *AddressBookProxyObserver) OnContactUpdateFailed(failureReason addressbook.FailureReason) {
-
-}
-func (c *AddressBookProxyObserver) OnContactDeleted(contact addressbook.Contact) {
-
-}
-func (c *AddressBookProxyObserver) OnContactUpdatedTo(index int, contact addressbook.Contact) {
-
-}
-func (c *AddressBookProxyObserver) OnContactsChanged(contacts []addressbook.Contact) {
-	fmt.Println("OnContactsChanged")
+func (c *AddressBookClient) OnContactsChanged(contacts []addressbook.Contact) {
 	c.contactsChanged++
 	c.wg.Done()
 }
-func (c *AddressBookProxyObserver) IsLoadedChanged(isLoaded bool) {
 
+func (c *AddressBookClient) OnContactCreated(contacts addressbook.Contact) {
+	c.wg.Done()
 }
-func (c *AddressBookProxyObserver) CurrentContactChanged(currentContact addressbook.Contact) {
 
-}
-func (c *AddressBookProxyObserver) ContactsChanged(contacts []addressbook.Contact) {
-
-}
-func (c *AddressBookProxyObserver) IntValuesChanged(intValues []int) {
-
-}
-func (c *AddressBookProxyObserver) MapOfContactsChanged(mapOfC map[string]addressbook.Contact) {
-
-}
-func (c *AddressBookProxyObserver) NestedChanged(nested addressbook.Nested) {
-
-}
-func (c *AddressBookProxyObserver) ReadyChanged(ready bool) {
-
+func (c *AddressBookServerObserver) OnContactsChanged(contacts []addressbook.Contact) {
+	c.contactsChanged++
+	c.wg.Done()
 }
 
 // waitTimeout waits for the waitgroup for the specified max timeout.
@@ -195,16 +161,20 @@ func TestSetProperty(t *testing.T) {
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
 
+	addressBookServerObserver := &AddressBookServerObserver{wg: &wg}
+
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
-	addressBookProxyObserver := &AddressBookProxyObserver{wg: &wg}
+	addressBookClient := &AddressBookClient{wg: &wg}
 	addressBookProxy.Init()
 	addressBookProxy.ConnectToServer(server.Names()[0])
 
 	contacts := []addressbook.Contact{addressbook.Contact{1, "JohnDoe", "0198349343", addressbook.Friend}, addressbook.Contact{2, "MaxMusterman", "823439343", addressbook.Family}}
 
-	addressBookProxy.AddContactsChangedObserver(addressBookProxyObserver)
+	addressBookImpl.AddContactsChangedObserver(addressBookServerObserver)
+	addressBookProxy.AddContactsChangedObserver(addressBookClient)
 	wg.Add(1)
-	errSetProp := addressBookProxy.Setcontacts(contacts)
+	wg.Add(1)
+	errSetProp := addressBookProxy.SetContacts(contacts)
 	if errSetProp != nil {
 		t.Errorf("call to remote object failed! %v", errSetProp)
 	}
@@ -213,8 +183,12 @@ func TestSetProperty(t *testing.T) {
 		t.Errorf("Timed out waiting for wait group")
 	}
 
-	if addressBookProxyObserver.contactsChanged != 1 {
-		t.Errorf("failed to get %v contactsChanged signal, got %v", 1, addressBookProxyObserver.contactsChanged)
+	if addressBookServerObserver.contactsChanged != 1 {
+		t.Errorf("failed to get %v contactsChanged signal, got %v", 1, addressBookServerObserver.contactsChanged)
+	}
+
+	if addressBookClient.contactsChanged != 1 {
+		t.Errorf("failed to get %v contactsChanged signal, got %v", 1, addressBookClient.contactsChanged)
 	}
 
 	if !reflect.DeepEqual(contacts, addressbookAdapter.Contacts()) {
@@ -224,11 +198,44 @@ func TestSetProperty(t *testing.T) {
 	otherContacts := []addressbook.Contact{addressbook.Contact{3, "NoName", "NoNumber", addressbook.Family}}
 
 	// wait group will panic if observer not removed due to negative wg counter
-	addressBookProxy.RemoveContactsChangedObserver(addressBookProxyObserver)
-	errSetPropAgain := addressBookProxy.Setcontacts(otherContacts)
+	addressBookImpl.RemoveContactsChangedObserver(addressBookServerObserver)
+	addressBookProxy.RemoveContactsChangedObserver(addressBookClient)
+	errSetPropAgain := addressBookProxy.SetContacts(otherContacts)
 	if errSetPropAgain != nil {
 		t.Errorf("call to remote object failed! %v", errSetPropAgain)
 	}
+}
+
+func TestSetPropertyNotAllowed(t *testing.T) {
+	server, err := dbus.SessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client, err := dbus.SessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{addressbookAdapter}
+	addressbookAdapter.Init(addressBookImpl)
+	addressbookAdapter.Export()
+	addressbookAdapter.SetCurrentContactCallback(addressBookImpl)
+
+	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy.Init()
+	addressBookProxy.ConnectToServer(server.Names()[0])
+
+	errSetProp := addressBookProxy.SetCurrentContact(addressbook.Contact{Idx: -1})
+	if errSetProp.Error() != "Wrong value" {
+		t.Errorf("setCurrentContact accepted wrong value")
+	}
+	errSetProp2 := addressBookProxy.SetCurrentContact(addressbook.Contact{Idx: 1})
+	if errSetProp2 != nil {
+		t.Errorf("setCurrentContact failed to accept wrong value")
+	}
+
 }
 
 func TestCallMethod(t *testing.T) {
@@ -252,8 +259,8 @@ func TestCallMethod(t *testing.T) {
 	addressBookProxy.Init()
 	addressBookProxy.ConnectToServer(server.Names()[0])
 
-	addressBookProxyObserver := &AddressBookProxyObserver{wg: &wg}
-	addressBookProxy.AddContactsChangedObserver(addressBookProxyObserver)
+	addressBookClient := &AddressBookClient{wg: &wg}
+	addressBookProxy.AddContactsChangedObserver(addressBookClient)
 	wg.Add(1)
 	errCallMethod := addressBookProxy.CreateNewContact()
 	if errCallMethod != nil {
@@ -273,6 +280,39 @@ func TestCallMethod(t *testing.T) {
 		t.Errorf("remote func didn't return error as expected")
 	}
 
-	addressBookProxy.RemoveContactsChangedObserver(addressBookProxyObserver)
+	addressBookProxy.RemoveContactsChangedObserver(addressBookClient)
+}
 
+func TestSignal(t *testing.T) {
+	var wg sync.WaitGroup
+	server, err := dbus.SessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client, err := dbus.SessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{addressbookAdapter}
+	addressbookAdapter.Init(addressBookImpl)
+	addressbookAdapter.Export()
+
+	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy.Init()
+	addressBookProxy.ConnectToServer(server.Names()[0])
+
+	addressBookClient := &AddressBookClient{wg: &wg}
+	addressBookProxy.AddContactCreatedObserver(addressBookClient)
+	wg.Add(1)
+	errCallMethod := addressBookProxy.CreateNewContact()
+	if errCallMethod != nil {
+		t.Errorf("call to remote object failed! %v", errCallMethod)
+	}
+
+	if waitTimeout(&wg, time.Second) {
+		t.Errorf("Timed out waiting for wait group")
+	}
 }

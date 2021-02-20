@@ -51,7 +51,7 @@ func main() {
 	proxy.Init()
 	proxy.ConnectToServer("goqface.addressbook")
 	proxy.AddContactsChangedObserver(addressBookSignalHandler)
-	proxy.Setcontacts([]addressbook.Contact{addressbook.Contact{1, "JohnDoe", "TelNummer", 2}, addressbook.Contact{2, "MAxMusterman", "Handy", 234}})
+	proxy.SetContacts([]addressbook.Contact{addressbook.Contact{1, "JohnDoe", "TelNummer", 2}, addressbook.Contact{2, "MAxMusterman", "Handy", 234}})
 
 	c := make(chan *dbus.Signal, 10)
 	for v := range c {
