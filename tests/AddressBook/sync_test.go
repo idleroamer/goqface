@@ -316,3 +316,34 @@ func TestSignal(t *testing.T) {
 		t.Errorf("Timed out waiting for wait group")
 	}
 }
+
+func TestGetAllOnReadyChanged(t *testing.T) {
+	server, err := dbus.SessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	client, err := dbus.SessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{addressbookAdapter}
+	addressbookAdapter.Init(addressBookImpl)
+	addressbookAdapter.Export()
+	addressBookImpl.AssignReady(true)
+	intValues := []int{1, 2, 3}
+	addressBookImpl.AssignIntValues(intValues)
+
+	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy.Init()
+	addressBookProxy.ConnectToServer(server.Names()[0])
+
+	if addressBookProxy.Ready() != true {
+		t.Errorf("GetAll properties is not called on ConnectToServer!")
+	}
+	if !reflect.DeepEqual(addressBookProxy.IntValues(), intValues) {
+		t.Errorf("GetAll properties is not called on ConnectToServer!")
+	}
+}

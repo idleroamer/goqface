@@ -123,6 +123,9 @@ func (c *{{interface.proxy_name}}) Set{{property.cap_name}}(value {{property.go_
 }
 {% endif %}
 {% endfor %}
+func (c *{{interface.proxy_name}}) Ready() bool {
+    return  c.ready
+}
 
 {% for property in interface.properties %}
 func (c *{{interface.proxy_name}}) Add{{property.cap_name}}ChangedObserver(observer interface{ On{{property.cap_name}}Changed({{property.go_type}}) }) {
