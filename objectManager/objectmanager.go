@@ -21,17 +21,18 @@ var once sync.Once
 type objectManager struct {
 	objectMap                  map[dbus.ObjectPath]map[string]map[string]dbus.Variant
 	objectServices             map[dbus.ObjectPath]string
+	objectNodes                map[string]bool
 	interfacesAddedObservers   []interface{ OnInterfaceAdded(objectPath string) }
 	interfacesRemovedObservers []interface{ OnInterfaceRemoved(objectPath string) }
 	adapter                    *objectManagerAdapter
-	conn                       *dbus.Conn
-	objectPath                 dbus.ObjectPath
-	interfaceName              string
-	dbusServiceNamePattern     string
 }
 
 type objectManagerAdapter struct {
-	objectManager *objectManager
+	objectManager          *objectManager
+	conn                   *dbus.Conn
+	objectPath             dbus.ObjectPath
+	interfaceName          string
+	dbusServiceNamePattern string
 }
 
 var (
@@ -39,23 +40,32 @@ var (
 )
 
 // ObjectManager returns a singleton instance of the ObjectManger for this service
-func (o *objectManager) ObjectManager(conn *dbus.Conn) *objectManager {
+func ObjectManager(conn *dbus.Conn) *objectManager {
 	once.Do(func() {
+		if instance == nil {
+			instance = make(map[*dbus.Conn]*objectManager)
+		}
+		instance[conn] = &objectManager{}
 		instance[conn].init(conn)
 	})
 	return instance[conn]
 }
 
 func (o *objectManager) init(conn *dbus.Conn) {
-	o.conn = conn
 	o.adapter = &objectManagerAdapter{objectManager: o}
+	o.adapter.conn = conn
 	o.objectMap = make(map[dbus.ObjectPath]map[string]map[string]dbus.Variant)
-	o.objectPath = "/"
-	o.interfaceName = "org.freedesktop.DBus.ObjectManager"
-	methods := introspect.Methods(o.adapter)
+	o.objectNodes = make(map[string]bool)
+	o.adapter.objectPath = "/"
+	o.adapter.interfaceName = "org.freedesktop.DBus.ObjectManager"
+	o.objectMap = make(map[dbus.ObjectPath]map[string]map[string]dbus.Variant)
+	o.objectServices = make(map[dbus.ObjectPath]string)
 
-	o.dbusServiceNamePattern = os.Getenv("DBUS_SERVICE_NAME_PATTERN")
-	conn.RequestName(o.dbusServiceNamePattern+".X"+conn.Names()[0], dbus.NameFlagDoNotQueue)
+	o.adapter.dbusServiceNamePattern = os.Getenv("DBUS_SERVICE_NAME_PATTERN")
+	if o.adapter.dbusServiceNamePattern == "" {
+		o.adapter.dbusServiceNamePattern = "facelift.registry"
+	}
+	conn.RequestName(o.adapter.dbusServiceNamePattern+".X"+conn.Names()[0], dbus.NameFlagDoNotQueue)
 	var services []string
 	err := conn.BusObject().Call("org.freedesktop.DBus.ListNames", 0).Store(&services)
 	if err != nil {
@@ -68,46 +78,34 @@ func (o *objectManager) init(conn *dbus.Conn) {
 		o.watchService(s)
 	}
 
-	conn.Export(o, o.objectPath, o.interfaceName)
-	n := &introspect.Node{
-		Name: string(o.objectPath),
-		Interfaces: []introspect.Interface{
-			introspect.IntrospectData,
-			prop.IntrospectData,
-			{
-				Name:    o.interfaceName,
-				Methods: methods,
-				Signals: o.signalsIntrospection(),
-			},
-		},
-	}
-	conn.Export(introspect.NewIntrospectable(n), o.objectPath,
-		"org.freedesktop.DBus.Introspectable")
+	conn.ExportWithMap(o.adapter, map[string]string{"GetManagedObjects": "GetManagedObjects"}, o.adapter.objectPath, o.adapter.interfaceName)
+
+	conn.ExportWithMap(o.adapter, map[string]string{"Introspect": "Introspect"}, o.adapter.objectPath, "org.freedesktop.DBus.Introspectable")
 }
 
 func (o *objectManager) watchService(service string) {
 	currentService := false
-	for _, names := range o.conn.Names() {
+	for _, names := range o.adapter.conn.Names() {
 		currentService = currentService || service == names
 	}
-	if matched, _ := regexp.MatchString(o.dbusServiceNamePattern, service); !currentService && matched {
+	if matched, _ := regexp.MatchString(o.adapter.dbusServiceNamePattern, service); !currentService && matched {
 		var objectPaths map[dbus.ObjectPath]map[string]map[string]dbus.Variant
-		remoteObj := o.conn.Object(service, "/")
-		remoteObj.Call(o.interfaceName+".GetManagedObjects", 0).Store(&objectPaths)
+		remoteObj := o.adapter.conn.Object(service, "/")
+		remoteObj.Call(o.adapter.interfaceName+".GetManagedObjects", 0).Store(&objectPaths)
 		for k := range objectPaths {
 			o.objectServices[k] = service
 		}
-		remoteObj.AddMatchSignal(o.interfaceName, "InterfacesAdded")
-		remoteObj.AddMatchSignal(o.interfaceName, "InterfacesRemoved")
+		remoteObj.AddMatchSignal(o.adapter.interfaceName, "InterfacesAdded")
+		remoteObj.AddMatchSignal(o.adapter.interfaceName, "InterfacesRemoved")
 		log.Printf("serive %s is watched for managed objects", service)
 	}
 }
 
 func (o *objectManager) watchSignals() {
 	ch := make(chan *dbus.Signal)
-	o.conn.Signal(ch)
+	o.adapter.conn.Signal(ch)
 	for v := range ch {
-		if v.Name == o.interfaceName+"InterfacesAdded" {
+		if v.Name == o.adapter.interfaceName+"InterfacesAdded" {
 			var objectPath dbus.ObjectPath
 			var interfacesAndProperties map[string]map[string]dbus.Variant
 			err := dbus.Store(v.Body, &objectPath, &interfacesAndProperties)
@@ -123,7 +121,7 @@ func (o *objectManager) watchSignals() {
 			} else if err != nil {
 				log.Print(err)
 			}
-		} else if v.Name == o.interfaceName+"InterfacesRemoved" {
+		} else if v.Name == o.adapter.interfaceName+"InterfacesRemoved" {
 			var objectPath dbus.ObjectPath
 			var interfaces []string
 			err := dbus.Store(v.Body, &objectPath, &interfaces)
@@ -159,22 +157,79 @@ func (o *objectManager) watchSignals() {
 }
 
 // GetManagedObjects get list of managed object in this service
-func (o *objectManager) GetManagedObjects() map[dbus.ObjectPath]map[string]map[string]dbus.Variant {
-	return o.objectMap
+func (o *objectManager) GetManagedObjects() (map[dbus.ObjectPath]map[string]map[string]dbus.Variant, *dbus.Error) {
+	return o.objectMap, nil
+}
+
+func (o *objectManagerAdapter) Introspect() (string, *dbus.Error) {
+	methods := introspect.Methods(o)
+	i := 0
+	for _, method := range methods {
+		if method.Name == "GetManagedObjects" {
+			methods[i] = method
+			i++
+		}
+	}
+	methods = methods[:i]
+	n := &introspect.Node{
+		Name: string(o.objectPath),
+		Interfaces: []introspect.Interface{
+			introspect.IntrospectData,
+			prop.IntrospectData,
+			{
+				Methods: methods,
+				Signals: o.signalsIntrospection(),
+			},
+		},
+	}
+	for nodes := range o.objectManager.objectNodes {
+		n.Children = append(n.Children, introspect.Node{
+			Name: nodes,
+		})
+	}
+	introspectable := string(introspect.NewIntrospectable(n))
+	return introspectable, nil
+}
+
+func (o *objectManagerAdapter) GetManagedObjects() (map[dbus.ObjectPath]map[string]map[string]dbus.Variant, *dbus.Error) {
+	return o.objectManager.GetManagedObjects()
+}
+
+func (o *objectManagerAdapter) InterfacesAdded(objectPath dbus.ObjectPath, interfacesAndproperties map[string]map[string]dbus.Variant) {
+	o.conn.Emit(o.objectPath, o.interfaceName+".InterfacesAdded", objectPath, interfacesAndproperties)
+}
+
+func (o *objectManagerAdapter) InterfacesRemoved(objectPath dbus.ObjectPath, interfaces []string) {
+	o.conn.Emit(o.objectPath, o.interfaceName+".InterfacesRemoved", objectPath, interfaces)
 }
 
 // RegisterObject make an object at given object path known to other services
 func (o *objectManager) RegisterObject(objectPath dbus.ObjectPath, interfacesAndproperties map[string]map[string]dbus.Variant) {
-	o.objectMap[objectPath] = interfacesAndproperties
-	o.objectServices[objectPath] = o.conn.Names()[0]
-	o.conn.Emit(o.objectPath, o.interfaceName+".InterfacesAdded", objectPath, interfacesAndproperties)
+	if _, ok := o.objectMap[objectPath]; !ok {
+		o.objectMap[objectPath] = interfacesAndproperties
+		o.objectServices[objectPath] = o.adapter.conn.Names()[0]
+		o.adapter.InterfacesAdded(objectPath, interfacesAndproperties)
+		paths := strings.Split(string(objectPath), "/")
+		if len(paths) > 2 {
+			o.objectNodes[paths[1]] = true
+		} else {
+			log.Fatalf("Incorrect object path %s", objectPath)
+		}
+	} else {
+		log.Fatalf("Can't register already registered object %s", objectPath)
+	}
+
 }
 
 // UnregisterObject call to inform other clients a registred object is destructed
 func (o *objectManager) UnregisterObject(objectPath dbus.ObjectPath, interfaces []string) {
-	delete(o.objectMap, objectPath)
-	delete(o.objectServices, objectPath)
-	o.conn.Emit(o.objectPath, o.interfaceName+".InterfacesRemoved", objectPath, interfaces)
+	if _, ok := o.objectMap[objectPath]; ok {
+		delete(o.objectMap, objectPath)
+		delete(o.objectServices, objectPath)
+		o.adapter.InterfacesRemoved(objectPath, interfaces)
+	} else {
+		log.Fatalf("Can't unregister a not registered object %s", objectPath)
+	}
 }
 
 func (o *objectManager) AddInterfaceAddedObserver(observer interface{ OnInterfaceAdded(string) }) {
@@ -199,7 +254,7 @@ func (o *objectManager) ObjectService(objectPath dbus.ObjectPath) (string, error
 	return "", errors.New("objectPath can't be found in registered services")
 }
 
-func (o *objectManager) signalsIntrospection() []introspect.Signal {
+func (o *objectManagerAdapter) signalsIntrospection() []introspect.Signal {
 	t := reflect.TypeOf(o)
 	signals := map[string][]string{"InterfacesAdded": {"objectPath", "interfacesAndProperties"},
 		"InterfacesRemoved": {"objectPath", "interfaces"},
@@ -221,8 +276,4 @@ func (o *objectManager) signalsIntrospection() []introspect.Signal {
 		ms = append(ms, m)
 	}
 	return ms
-}
-
-func (o *objectManagerAdapter) GetManagedObjects() map[dbus.ObjectPath]map[string]map[string]dbus.Variant {
-	return o.objectManager.GetManagedObjects()
 }
