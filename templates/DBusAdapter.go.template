@@ -11,6 +11,7 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/introspect"
 	"github.com/godbus/dbus/v5/prop"
+	"github.com/idleroamer/goqface"
 {% for key, value in module.interface_imports.items() %}
 {{key}} "{{value}}"
 {% endfor %}
@@ -125,6 +126,7 @@ func (c *{{interface.cap_name}}Adapter) Export() {
 	}
 	c.Conn.Export(introspect.NewIntrospectable(n), c.ObjectPath,
 		"org.freedesktop.DBus.Introspectable")
+	goqface.ObjectManger(c.Conn).RegisterObject(c.ObjectPath, nil)
 }
 
 func (c *{{interface.cap_name}}Adapter) Ready() bool {
