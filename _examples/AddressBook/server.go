@@ -127,12 +127,13 @@ func main() {
 		os.Exit(1)
 	}
 
-	addressbookImpl := &AddressBookImpl{&addressbook.AddressBookAdapter{Conn: conn}}
+	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: conn}
+	addressBookImpl := &AddressBookImpl{addressbookAdapter}
 
-	addressbookImpl.Init(addressbookImpl)
-	addressbookImpl.Export()
+	addressbookAdapter.Init(addressBookImpl)
+	addressbookAdapter.Export()
 
-	fmt.Println("Listening on serviceName: " + addressbookServiceName + " objectPath: " + string(addressbookImpl.ObjectPath) + "...")
+	fmt.Println("Listening on serviceName: " + addressbookServiceName + " objectPath: " + string(addressBookImpl.ObjectPath()) + "...")
 
 	c := make(chan *dbus.Signal)
 	conn.Signal(c)
