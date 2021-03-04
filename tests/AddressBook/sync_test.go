@@ -123,6 +123,10 @@ func (c *AddressBookClient) OnContactCreated(contacts addressbook.Contact) {
 	c.wg.Done()
 }
 
+func (c *AddressBookClient) OnReadyChanged(ready bool) {
+	c.wg.Done()
+}
+
 func (c *AddressBookServerObserver) OnContactsChanged(contacts []addressbook.Contact) {
 	c.contactsChanged++
 	c.wg.Done()
@@ -168,7 +172,8 @@ func TestSetProperty(t *testing.T) {
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookClient := &AddressBookClient{wg: &wg}
 	addressBookProxy.Init()
-	addressBookProxy.ConnectToServer(server.Names()[0])
+	addressBookProxy.SetServiceName(server.Names()[0])
+	addressBookProxy.ConnectToServer()
 
 	contacts := []addressbook.Contact{addressbook.Contact{1, "JohnDoe", "0198349343", addressbook.Friend}, addressbook.Contact{2, "MaxMusterman", "823439343", addressbook.Family}}
 
@@ -228,7 +233,8 @@ func TestSetPropertyNotAllowed(t *testing.T) {
 
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
-	addressBookProxy.ConnectToServer(server.Names()[0])
+	addressBookProxy.SetServiceName(server.Names()[0])
+	addressBookProxy.ConnectToServer()
 
 	errSetProp := addressBookProxy.SetCurrentContact(addressbook.Contact{Idx: -1})
 	if errSetProp.Error() != "Wrong value" {
@@ -261,7 +267,8 @@ func TestCallMethod(t *testing.T) {
 
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
-	addressBookProxy.ConnectToServer(server.Names()[0])
+	addressBookProxy.SetServiceName(server.Names()[0])
+	addressBookProxy.ConnectToServer()
 
 	addressBookClient := &AddressBookClient{wg: &wg}
 	addressBookProxy.AddContactsChangedObserver(addressBookClient)
@@ -307,7 +314,8 @@ func TestSignal(t *testing.T) {
 
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
-	addressBookProxy.ConnectToServer(server.Names()[0])
+	addressBookProxy.SetServiceName(server.Names()[0])
+	addressBookProxy.ConnectToServer()
 
 	addressBookClient := &AddressBookClient{wg: &wg}
 	addressBookProxy.AddContactCreatedObserver(addressBookClient)
@@ -323,6 +331,7 @@ func TestSignal(t *testing.T) {
 }
 
 func TestGetAllOnReadyChanged(t *testing.T) {
+	var wg sync.WaitGroup
 	server, err := dbus.SessionBus()
 	if err != nil {
 		t.Fatal(err)
@@ -344,8 +353,18 @@ func TestGetAllOnReadyChanged(t *testing.T) {
 
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
-	addressBookProxy.ConnectToServer(server.Names()[0])
+	addressBookProxy.SetServiceName(server.Names()[0])
 
+	addressBookClient := &AddressBookClient{wg: &wg}
+	addressBookProxy.AddReadyChangedObserver(addressBookClient)
+	wg.Add(1)
+
+	addressBookProxy.ConnectToServer()
+
+	if waitTimeout(&wg, time.Second) {
+		t.Errorf("Timed out waiting for wait group")
+	}
+	addressBookProxy.RemoveReadyChangedObserver(addressBookClient)
 	if addressBookProxy.Ready() != true {
 		t.Errorf("GetAll properties is not called on ConnectToServer!")
 	}
@@ -355,6 +374,7 @@ func TestGetAllOnReadyChanged(t *testing.T) {
 }
 
 func TestObjectManager(t *testing.T) {
+	var wg sync.WaitGroup
 	server, err := dbus.SessionBus()
 	if err != nil {
 		t.Fatal(err)
@@ -367,20 +387,38 @@ func TestObjectManager(t *testing.T) {
 	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
 	addressBookImpl := &AddressBookImpl{addressbookAdapter}
 	addressbookAdapter.Init(addressBookImpl)
+	addressbookAdapter.SetObjectPath(addressbookAdapter.ObjectPath() + "/ObjectManagement")
 	addressbookAdapter.Export()
-	defer goqface.ObjectManager(server).UnregisterObject(addressbookAdapter.ObjectPath(), nil)
 	addressBookImpl.AssignReady(true)
 	intValues := []int{1, 2, 3}
 	addressBookImpl.AssignIntValues(intValues)
 
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
-	addressBookProxy.ConnectToServer(server.Names()[0])
+	addressBookProxy.SetObjectPath(addressBookProxy.ObjectPath() + "/ObjectManagement")
 
+	addressBookClient := &AddressBookClient{wg: &wg}
+	addressBookProxy.AddReadyChangedObserver(addressBookClient)
+	wg.Add(1)
+
+	addressBookProxy.ConnectToServer()
+
+	if waitTimeout(&wg, time.Second) {
+		t.Errorf("Timed out waiting for wait group")
+	}
 	if addressBookProxy.Ready() != true {
-		t.Errorf("GetAll properties is not called on ConnectToServer!")
+		t.Errorf("proxy not connected automatically to adapter!")
 	}
 	if !reflect.DeepEqual(addressBookProxy.IntValues(), intValues) {
 		t.Errorf("GetAll properties is not called on ConnectToServer!")
+	}
+
+	wg.Add(1)
+	goqface.ObjectManager(server).UnregisterObject(addressbookAdapter.ObjectPath(), nil)
+	if waitTimeout(&wg, time.Second) {
+		t.Errorf("Timed out waiting for wait group")
+	}
+	if addressBookProxy.Ready() != false {
+		t.Errorf("proxy not automatically informed about adapter object removal!")
 	}
 }

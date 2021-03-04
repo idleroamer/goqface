@@ -9,6 +9,7 @@ import (
     "log"
 {% endfor %}
 	"github.com/godbus/dbus/v5"
+	"github.com/idleroamer/goqface/objectManager"
 {% for key, value in module.interface_imports.items() %}
 {{key}} "{{value}}"
 {% endfor %}
@@ -29,22 +30,25 @@ type {{interface.proxy_name}} struct {
     {% endfor %}
 	ready          bool
 	Conn           *dbus.Conn
-	ServiceName    string
-	InterfaceName  string
-	ObjectPath     dbus.ObjectPath
-	RemoteObj      dbus.BusObject
+	serviceName    string
+	interfaceName  string
+	objectPath     dbus.ObjectPath
+	remoteObj      dbus.BusObject
+        connected      bool
+        explicitService bool
 
 }
 
 func (c *{{interface.proxy_name}}) Init() {
-    c.InterfaceName = "{{interface.qualified_name}}"
-    c.ObjectPath = "/{{interface.qualified_name.replace('.', '/')}}"
+    c.interfaceName = "{{interface.qualified_name}}"
+    c.objectPath = "/{{interface.qualified_name.replace('.', '/')}}"
 }
 
 func (c *{{interface.proxy_name}}) watchSignals() {
     ch := make(chan *dbus.Signal)
 	c.Conn.Signal(ch)
 	for v := range ch {
+        // TODO check object path in addtion to interface name?
 	    if (v.Name == "org.freedesktop.DBus.Properties.PropertiesChanged") {
 	        var inter string
 	        var changedProps map[string]dbus.Variant
@@ -74,20 +78,91 @@ func (c *{{interface.proxy_name}}) watchSignals() {
 	}
 }
 
-func (c *{{interface.proxy_name}}) ConnectToServer(serviceName string) {
-    c.ServiceName = serviceName
-    c.RemoteObj = c.Conn.Object(c.ServiceName, c.ObjectPath)
-    values := c.RemoteObj.Call("org.freedesktop.DBus.Properties.GetAll", 0, c.InterfaceName)
-	if len(values.Body) > 0 {
-		props := values.Body[0].(map[string]dbus.Variant)
-        c.setProps(props)
-	}
-
-   	c.RemoteObj.AddMatchSignal("org.freedesktop.DBus.Properties", "PropertiesChanged")
-{% for signal in interface.signals %}
-	c.RemoteObj.AddMatchSignal(c.InterfaceName, "{{signal.name}}")
-{% endfor %}
+func (c *{{interface.proxy_name}}) ConnectToServer() {
+    c.connected = true
+    c.setServiceName(c.serviceName)
     go c.watchSignals()
+}
+
+func (c *{{interface.proxy_name}}) ObjectPath() dbus.ObjectPath {
+	return c.objectPath
+}
+
+func (c *{{interface.proxy_name}}) SetObjectPath(objectPath dbus.ObjectPath) {
+    c.objectPath = objectPath
+}
+
+func (c *{{interface.proxy_name}}) InterfaceName() string {
+	return c.interfaceName
+}
+
+func (c *{{interface.proxy_name}}) SetInterfaceName(interfaceName string) {
+    c.interfaceName = interfaceName
+}
+
+func (c *{{interface.proxy_name}}) ServiceName() string {
+	return c.serviceName
+}
+
+func (c *{{interface.proxy_name}}) SetServiceName(serviceName string) {
+	c.explicitService = true
+	c.setServiceName(serviceName)
+}
+
+func (c *{{interface.proxy_name}}) setServiceName(serviceName string) {
+    c.serviceName = serviceName
+    if c.connected {
+        if !c.explicitService {
+            goqface.ObjectManager(c.Conn).AddInterfaceAddedObserver(c)
+            goqface.ObjectManager(c.Conn).AddInterfaceRemovedObserver(c)
+            c.serviceName = goqface.ObjectManager(c.Conn).ObjectService(c.objectPath)
+            if (c.serviceName != "") {
+                c.connectToRemoteObject()
+            }
+        } else {
+            goqface.ObjectManager(c.Conn).RemoveInterfaceAddedObserver(c)
+            goqface.ObjectManager(c.Conn).RemoveInterfaceRemovedObserver(c)
+            // TODO Watchservice explicitly
+            c.connectToRemoteObject()
+        }
+    }
+}
+
+func (c *{{interface.proxy_name}}) connectToRemoteObject() {
+    c.remoteObj = c.Conn.Object(c.serviceName, c.objectPath)
+    values := c.remoteObj.Call("org.freedesktop.DBus.Properties.GetAll", 0, c.interfaceName)
+    if len(values.Body) > 0 {
+        props := values.Body[0].(map[string]dbus.Variant)
+        c.setProps(props)
+    }
+    c.remoteObj.AddMatchSignal("org.freedesktop.DBus.Properties", "PropertiesChanged")
+    {% for signal in interface.signals %}
+        c.remoteObj.AddMatchSignal(c.interfaceName, "{{signal.name}}")
+    {% endfor %}
+}
+
+func (c *{{interface.proxy_name}}) OnInterfacesAdded(serviceName string, objectPath dbus.ObjectPath) {
+    if objectPath == c.objectPath {
+        if c.serviceName == "" {
+            c.setServiceName(serviceName)
+        } else {
+            log.Printf("Ignore InterfaceAdded by service %s for object %s, already listening on service %s", serviceName, c.objectPath, c.serviceName)
+        }
+    }
+}
+
+func (c *{{interface.proxy_name}}) OnInterfacesRemoved(serviceName string, objectPath dbus.ObjectPath) {
+    if objectPath == c.objectPath {
+        if serviceName == c.serviceName {
+            log.Printf("Object %s at service %s is removed", objectPath, serviceName)
+            c.ready = false
+            for _, observer := range c.readyChangedObservers {
+               go observer.OnReadyChanged(c.ready)
+            }
+        } else {
+             log.Printf("Ignore InterfaceRemoved by service %s for object %s, proxy listening on service %s", serviceName, c.objectPath, c.serviceName)
+        }
+    }
 }
 
 func (c *{{interface.proxy_name}}) setProps(props map[string]dbus.Variant) {
@@ -106,9 +181,13 @@ func (c *{{interface.proxy_name}}) setProps(props map[string]dbus.Variant) {
     }
     {% endfor %}
     if val, ok := props["ready"]; ok {
-        dbus.Store([]interface{}{val}, &c.ready)
-        for _, observer := range c.readyChangedObservers {
-            go observer.OnReadyChanged(c.ready)
+        var ready bool 
+        err := dbus.Store([]interface{}{val}, &ready)
+        if err == nil && c.ready != ready {
+            c.ready = ready
+            for _, observer := range c.readyChangedObservers {
+                go observer.OnReadyChanged(c.ready)
+            }
         }
     }
 }
@@ -119,7 +198,7 @@ func (c *{{interface.proxy_name}}) {{property.cap_name}}() {{property.go_type}} 
 }
 {% if not property.readonly %}
 func (c *{{interface.proxy_name}}) Set{{property.cap_name}}(value {{property.go_type}}) error {
-    return c.RemoteObj.SetProperty("{{interface.qualified_name}}.{{property.name}}", dbus.MakeVariant(value))
+    return c.remoteObj.SetProperty("{{interface.qualified_name}}.{{property.name}}", dbus.MakeVariant(value))
 }
 {% endif %}
 {% endfor %}
@@ -143,6 +222,20 @@ func (c *{{interface.proxy_name}}) Remove{{property.cap_name}}ChangedObserver(ob
 }
 {% endfor %}
 
+func (c *{{interface.proxy_name}}) AddReadyChangedObserver(observer interface{ OnReadyChanged(bool) }) {
+    c.readyChangedObservers = append(c.readyChangedObservers, observer)
+}
+func (c *{{interface.proxy_name}}) RemoveReadyChangedObserver(observer interface{ OnReadyChanged(bool) }) bool {
+    found := false
+    for i := range c.readyChangedObservers {
+        if c.readyChangedObservers[i] == observer {
+            c.readyChangedObservers = append(c.readyChangedObservers[:i], c.readyChangedObservers[i+1:]...)
+            found = true
+        }
+     }
+     return found
+}
+
 {% for signal in interface.signals %}
 func (c *{{interface.proxy_name}}) Add{{signal.cap_name}}Observer(observer interface { On{{signal.cap_name}}({%- for parameter in signal.parameters -%} {{parameter.name}} {{parameter.go_type}},{%- endfor -%}) })  {
     c.{{signal.lower_name}}Observers = append(c.{{signal.lower_name}}Observers, observer)
@@ -161,7 +254,7 @@ func (c *{{interface.proxy_name}}) Remove{{signal.cap_name}}Observer(observer in
 
 {% for operation in interface.operations %}
 func (c *{{interface.proxy_name}}) {{operation.cap_name}}({%- for parameter in operation.parameters -%}{{parameter.name}} {{parameter.go_type}},{%- endfor -%}) ({% if operation.has_return_value %}r {{operation.go_type}}, {% endif %}err error){
-    err=c.RemoteObj.Call("{{operation.name}}", 0, {%- for parameter in operation.parameters -%}{{parameter.name}},{%- endfor -%}){% if operation.has_return_value %}.Store(&r){% else %}.Err{% endif %}
+    err=c.remoteObj.Call("{{operation.name}}", 0, {%- for parameter in operation.parameters -%}{{parameter.name}},{%- endfor -%}){% if operation.has_return_value %}.Store(&r){% else %}.Err{% endif %}
 
     return {% if operation.has_return_value %}r, {% endif %}err
 }

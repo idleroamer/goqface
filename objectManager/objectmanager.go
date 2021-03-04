@@ -1,7 +1,6 @@
 package goqface
 
 import (
-	"errors"
 	"log"
 	"os"
 	"reflect"
@@ -19,16 +18,21 @@ var once sync.Once
 // ObjectManager mangages objects and their path in this service
 // following the dbus specification of Object Manager from rev 0.17
 type objectManager struct {
-	objectMap                  map[dbus.ObjectPath]map[string]map[string]dbus.Variant
-	objectServices             map[dbus.ObjectPath]string
-	objectNodes                map[string]bool
-	interfacesAddedObservers   []interface{ OnInterfaceAdded(objectPath string) }
-	interfacesRemovedObservers []interface{ OnInterfaceRemoved(objectPath string) }
-	adapter                    *objectManagerAdapter
+	objectMap                map[dbus.ObjectPath]map[string]map[string]dbus.Variant
+	objectServices           map[dbus.ObjectPath]string
+	objectNodes              map[string]bool
+	interfacesAddedObservers []interface {
+		OnInterfacesAdded(serviceName string, objectPath dbus.ObjectPath)
+	}
+	interfacesRemovedObservers []interface {
+		OnInterfacesRemoved(serviceName string, objectPath dbus.ObjectPath)
+	}
+	adapter *objectManagerAdapter
 }
 
 type objectManagerAdapter struct {
 	objectManager          *objectManager
+	remoteObjects          map[string]dbus.BusObject
 	conn                   *dbus.Conn
 	objectPath             dbus.ObjectPath
 	interfaceName          string
@@ -58,46 +62,50 @@ func (o *objectManager) init(conn *dbus.Conn) {
 	o.objectNodes = make(map[string]bool)
 	o.adapter.objectPath = "/"
 	o.adapter.interfaceName = "org.freedesktop.DBus.ObjectManager"
-	o.objectMap = make(map[dbus.ObjectPath]map[string]map[string]dbus.Variant)
 	o.objectServices = make(map[dbus.ObjectPath]string)
+	o.adapter.remoteObjects = make(map[string]dbus.BusObject)
 
 	o.adapter.dbusServiceNamePattern = os.Getenv("DBUS_SERVICE_NAME_PATTERN")
 	if o.adapter.dbusServiceNamePattern == "" {
 		o.adapter.dbusServiceNamePattern = "facelift.registry"
 	}
-	conn.RequestName(o.adapter.dbusServiceNamePattern+".X"+conn.Names()[0], dbus.NameFlagDoNotQueue)
+	postfix := strings.ReplaceAll(conn.Names()[0], ".", "")
+	postfix = strings.ReplaceAll(postfix, ":", "")
+	conn.RequestName(o.adapter.dbusServiceNamePattern+".X"+postfix, dbus.NameFlagDoNotQueue)
 	var services []string
 	err := conn.BusObject().Call("org.freedesktop.DBus.ListNames", 0).Store(&services)
 	if err != nil {
 		log.Fatal("Failed to get list of owned names:", err)
 	}
 
+	conn.ExportWithMap(o.adapter, map[string]string{"GetManagedObjects": "GetManagedObjects"}, o.adapter.objectPath, o.adapter.interfaceName)
+	conn.ExportWithMap(o.adapter, map[string]string{"Introspect": "Introspect"}, o.adapter.objectPath, "org.freedesktop.DBus.Introspectable")
 	go o.watchSignals()
 	conn.BusObject().AddMatchSignal("org.freedesktop.DBus", "NameOwnerChanged")
 	for _, s := range services {
 		o.watchService(s)
 	}
-
-	conn.ExportWithMap(o.adapter, map[string]string{"GetManagedObjects": "GetManagedObjects"}, o.adapter.objectPath, o.adapter.interfaceName)
-
-	conn.ExportWithMap(o.adapter, map[string]string{"Introspect": "Introspect"}, o.adapter.objectPath, "org.freedesktop.DBus.Introspectable")
 }
 
 func (o *objectManager) watchService(service string) {
-	currentService := false
-	for _, names := range o.adapter.conn.Names() {
-		currentService = currentService || service == names
-	}
-	if matched, _ := regexp.MatchString(o.adapter.dbusServiceNamePattern, service); !currentService && matched {
-		var objectPaths map[dbus.ObjectPath]map[string]map[string]dbus.Variant
-		remoteObj := o.adapter.conn.Object(service, "/")
-		remoteObj.Call(o.adapter.interfaceName+".GetManagedObjects", 0).Store(&objectPaths)
-		for k := range objectPaths {
-			o.objectServices[k] = service
+	if matched, _ := regexp.MatchString(o.adapter.dbusServiceNamePattern, service); matched {
+		o.adapter.remoteObjects[service] = o.adapter.conn.Object(service, o.adapter.objectPath)
+		ch := make(chan *dbus.Call, 2)
+		o.adapter.remoteObjects[service].Go(o.adapter.interfaceName+".GetManagedObjects", 0, ch)
+		select {
+		case call := <-ch:
+			if call.Err == nil {
+				objectPaths := call.Body[0].(map[dbus.ObjectPath]map[string]map[string]dbus.Variant)
+				for k := range objectPaths {
+					o.objectServices[k] = service
+				}
+				o.adapter.remoteObjects[service].AddMatchSignal(o.adapter.interfaceName, "InterfacesAdded")
+				o.adapter.remoteObjects[service].AddMatchSignal(o.adapter.interfaceName, "InterfacesRemoved")
+				log.Printf("serive %s is watched for managed objects", service)
+			} else {
+				log.Printf("Failed to GetManagedObjects of service %s due to \"%s\"", service, call.Err)
+			}
 		}
-		remoteObj.AddMatchSignal(o.adapter.interfaceName, "InterfacesAdded")
-		remoteObj.AddMatchSignal(o.adapter.interfaceName, "InterfacesRemoved")
-		log.Printf("serive %s is watched for managed objects", service)
 	}
 }
 
@@ -105,7 +113,7 @@ func (o *objectManager) watchSignals() {
 	ch := make(chan *dbus.Signal)
 	o.adapter.conn.Signal(ch)
 	for v := range ch {
-		if v.Name == o.adapter.interfaceName+"InterfacesAdded" {
+		if v.Name == o.adapter.interfaceName+".InterfacesAdded" {
 			var objectPath dbus.ObjectPath
 			var interfacesAndProperties map[string]map[string]dbus.Variant
 			err := dbus.Store(v.Body, &objectPath, &interfacesAndProperties)
@@ -113,15 +121,15 @@ func (o *objectManager) watchSignals() {
 				if _, ok := o.objectServices[objectPath]; !ok {
 					o.objectServices[objectPath] = v.Sender
 				} else {
-					log.Printf("Object path %s already registered, ignore service %s", objectPath, v.Sender)
+					log.Printf("Objectpath %s already registered, ignore service %s", objectPath, v.Sender)
 				}
 				for _, observer := range o.interfacesAddedObservers {
-					go observer.OnInterfaceAdded(string(objectPath))
+					go observer.OnInterfacesAdded(v.Sender, objectPath)
 				}
 			} else if err != nil {
 				log.Print(err)
 			}
-		} else if v.Name == o.adapter.interfaceName+"InterfacesRemoved" {
+		} else if v.Name == o.adapter.interfaceName+".InterfacesRemoved" {
 			var objectPath dbus.ObjectPath
 			var interfaces []string
 			err := dbus.Store(v.Body, &objectPath, &interfaces)
@@ -135,9 +143,8 @@ func (o *objectManager) watchSignals() {
 				} else {
 					log.Printf("Object path %s not registered, ignore removal signal from service %s", objectPath, v.Sender)
 				}
-
 				for _, observer := range o.interfacesRemovedObservers {
-					go observer.OnInterfaceRemoved(string(objectPath))
+					go observer.OnInterfacesRemoved(v.Sender, objectPath)
 				}
 			} else if err != nil {
 				log.Print(err)
@@ -177,6 +184,7 @@ func (o *objectManagerAdapter) Introspect() (string, *dbus.Error) {
 			introspect.IntrospectData,
 			prop.IntrospectData,
 			{
+				Name:    o.interfaceName,
 				Methods: methods,
 				Signals: o.signalsIntrospection(),
 			},
@@ -207,7 +215,6 @@ func (o *objectManagerAdapter) InterfacesRemoved(objectPath dbus.ObjectPath, int
 func (o *objectManager) RegisterObject(objectPath dbus.ObjectPath, interfacesAndproperties map[string]map[string]dbus.Variant) {
 	if _, ok := o.objectMap[objectPath]; !ok {
 		o.objectMap[objectPath] = interfacesAndproperties
-		o.objectServices[objectPath] = o.adapter.conn.Names()[0]
 		o.adapter.InterfacesAdded(objectPath, interfacesAndproperties)
 		paths := strings.Split(string(objectPath), "/")
 		if len(paths) > 2 {
@@ -225,18 +232,32 @@ func (o *objectManager) RegisterObject(objectPath dbus.ObjectPath, interfacesAnd
 func (o *objectManager) UnregisterObject(objectPath dbus.ObjectPath, interfaces []string) {
 	if _, ok := o.objectMap[objectPath]; ok {
 		delete(o.objectMap, objectPath)
-		delete(o.objectServices, objectPath)
 		o.adapter.InterfacesRemoved(objectPath, interfaces)
 	} else {
 		log.Fatalf("Can't unregister a not registered object %s", objectPath)
 	}
 }
 
-func (o *objectManager) AddInterfaceAddedObserver(observer interface{ OnInterfaceAdded(string) }) {
+func (o *objectManager) AddInterfaceAddedObserver(observer interface{ OnInterfacesAdded(string, dbus.ObjectPath) }) {
 	o.interfacesAddedObservers = append(o.interfacesAddedObservers, observer)
 }
 
-func (o *objectManager) AddInterfaceRemovedObserver(observer interface{ OnInterfaceRemoved(string) }) bool {
+func (o *objectManager) RemoveInterfaceAddedObserver(observer interface{ OnInterfacesAdded(string, dbus.ObjectPath) }) bool {
+	found := false
+	for i := range o.interfacesAddedObservers {
+		if o.interfacesAddedObservers[i] == observer {
+			o.interfacesAddedObservers = append(o.interfacesAddedObservers[:i], o.interfacesAddedObservers[i+1:]...)
+			found = true
+		}
+	}
+	return found
+}
+
+func (o *objectManager) AddInterfaceRemovedObserver(observer interface{ OnInterfacesRemoved(string, dbus.ObjectPath) }) {
+	o.interfacesRemovedObservers = append(o.interfacesRemovedObservers, observer)
+}
+
+func (o *objectManager) RemoveInterfaceRemovedObserver(observer interface{ OnInterfacesRemoved(string, dbus.ObjectPath) }) bool {
 	found := false
 	for i := range o.interfacesRemovedObservers {
 		if o.interfacesRemovedObservers[i] == observer {
@@ -247,11 +268,11 @@ func (o *objectManager) AddInterfaceRemovedObserver(observer interface{ OnInterf
 	return found
 }
 
-func (o *objectManager) ObjectService(objectPath dbus.ObjectPath) (string, error) {
+func (o *objectManager) ObjectService(objectPath dbus.ObjectPath) string {
 	if val, ok := o.objectServices[objectPath]; ok {
-		return val, nil
+		return val
 	}
-	return "", errors.New("objectPath can't be found in registered services")
+	return ""
 }
 
 func (o *objectManagerAdapter) signalsIntrospection() []introspect.Signal {
