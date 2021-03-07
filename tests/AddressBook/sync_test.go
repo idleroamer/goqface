@@ -397,6 +397,10 @@ func TestObjectManager(t *testing.T) {
 	addressBookProxy.Init()
 	addressBookProxy.SetObjectPath(addressBookProxy.ObjectPath() + "/ObjectManagement")
 
+	// test proper intialization per connection
+	systemdbus, _ := dbus.SystemBus()
+	goqface.ObjectManager(systemdbus).AddInterfaceAddedObserver(addressBookProxy)
+
 	addressBookClient := &AddressBookClient{wg: &wg}
 	addressBookProxy.AddReadyChangedObserver(addressBookClient)
 	wg.Add(1)

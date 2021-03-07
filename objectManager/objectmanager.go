@@ -13,7 +13,7 @@ import (
 	"github.com/godbus/dbus/v5/prop"
 )
 
-var once sync.Once
+var oncePerConn sync.Map
 
 // ObjectManager mangages objects and their path in this service
 // following the dbus specification of Object Manager from rev 0.17
@@ -45,7 +45,8 @@ var (
 
 // ObjectManager returns a singleton instance of the ObjectManger for this service
 func ObjectManager(conn *dbus.Conn) *objectManager {
-	once.Do(func() {
+	once, _ := oncePerConn.LoadOrStore(conn, &sync.Once{})
+	once.(*sync.Once).Do(func() {
 		if instance == nil {
 			instance = make(map[*dbus.Conn]*objectManager)
 		}
@@ -67,7 +68,7 @@ func (o *objectManager) init(conn *dbus.Conn) {
 
 	o.adapter.dbusServiceNamePattern = os.Getenv("DBUS_SERVICE_NAME_PATTERN")
 	if o.adapter.dbusServiceNamePattern == "" {
-		o.adapter.dbusServiceNamePattern = "facelift.registry"
+		o.adapter.dbusServiceNamePattern = "qface.registry"
 	}
 	postfix := strings.ReplaceAll(conn.Names()[0], ".", "")
 	postfix = strings.ReplaceAll(postfix, ":", "")
