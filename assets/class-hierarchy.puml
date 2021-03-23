@@ -1,0 +1,51 @@
+@startuml
+skinparam class {
+BackgroundColor PaleGreen
+ArrowColor SeaGreen
+BorderColor SpringGreen
+BackgroundColorImpl Wheat
+BorderColorImpl Tomato
+}
+
+interface AddressBookInterface {
+ METHODS 
+}
+
+entity AddressBookAdapter {
+ Init(AddressBookInterface)
+ Export()
+ PROPERTIES
+ SIGNALS
+ PROPERTIES_CHANGED_OBSERVERS
+}
+
+entity AddressBookAdapterObserver Impl {
+ PROPERTY_CHANGED
+}
+
+entity AddressBookProxy {
+ Init()
+ ConnectToServer()
+ METHODS
+ PROPERTIES
+ PROPERTIES_CHANGED_OBSERVER
+ SIGNAL_OBSERVERS
+}
+
+entity AddressBookProxyObserver Impl {
+ ON_PROPERTY_CHANGED
+ ON_SIGNAL
+}
+
+entity AddressBookImpl Impl {
+ METHODS
+ SET_PROPERTY_HANDLER
+}
+AddressBookInterface |.. AddressBookImpl : implements
+AddressBookAdapter o-- AddressBookImpl: aggregates
+
+AddressBookProxy "1" --o "n" AddressBookProxyObserver
+AddressBookAdapter "1" --o "n" AddressBookAdapterObserver
+
+@enduml
+
