@@ -1,0 +1,17 @@
+@startuml
+title DBus Property 
+AddressBookProxy -> DBus: Set<Property>
+AddressBookAdapter <- DBus: SetProperty(PropertyName)
+alt <Property>Handler exists
+AddressBookAdapter ->  PropertyHandler: Set<Property>
+PropertyHandler -> AddressBookAdapter: return Set<Property>
+end
+alt <Property>Handler not exists \n or returns nil error
+AddressBookAdapter -> DBus: PropertiesChanged
+DBus -> AddressBookProxy: PropertiesChanged 
+AddressBookProxy -> AddressBookProxy: Update<Property>Changed
+else value invalid
+AddressBookAdapter -> DBus: Return DBus error
+DBus -> AddressBookProxy: Return DBus error
+end
+@enduml

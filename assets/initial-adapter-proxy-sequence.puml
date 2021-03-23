@@ -1,0 +1,13 @@
+@startuml
+title DBus Communication
+AddressBookAdapter -> AddressBookAdapter: Init(AddressBookImpl) 
+AddressBookAdapter -> DBus: Export 
+AddressBookProxy -> AddressBookProxy: Init 
+AddressBookProxy -> DBus: ConnectToServer
+note right: Tries to fetch all properties 
+AddressBookProxy -> DBus: <Method>Sync
+DBus -> AddressBookImpl: <Method>Sync
+AddressBookImpl -> DBus: <Method>Return
+DBus -> AddressBookProxy: <Method>Return
+
+@enduml
