@@ -147,6 +147,7 @@ for module in system.modules:
         ctx.update({'module': module})
         module_path = '/'.join(module.name_parts)
         ctx.update({'path': module_path})
+        generator.write('{{path}}/' + module.name_parts[-1] + 'Interface.go', 'Interface.go.template', ctx)
         generator.write('{{path}}/' + module.name_parts[-1] + 'DBusAdapter.go', 'DBusAdapter.go.template', ctx)
         generator.write('{{path}}/' + module.name_parts[-1] + 'Enums.go', 'Enum.go.template', ctx)
         generator.write('{{path}}/' + module.name_parts[-1] + 'Structs.go', 'Struct.go.template', ctx)

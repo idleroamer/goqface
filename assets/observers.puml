@@ -1,0 +1,28 @@
+@startuml
+title observers
+box "service process" #LightBlue
+collections ServerObserver #Wheat
+participant DBusAdapter #PaleGreen
+end box
+
+group signal emission
+DBusAdapter -> DBus: <Signal>
+box "client process" #Lavender
+participant DBusProxy #PaleGreen
+collections ClientObserver #Wheat
+end box
+
+DBus -> DBusProxy: <Signal>
+DBusProxy -> ClientObserver : On<Signal>
+end
+
+group property assignment
+
+DBusProxy -> DBus: Set<Property>a
+DBus -> DBusAdapter: Set<Property>
+DBusAdapter -> DBus: PropertiesChanged
+DBus -> DBusProxy: PropertiesChanged
+DBusAdapter -> ServerObserver: On<Property>Changed
+DBusProxy -> ClientObserver: On<Property>Changed
+end
+@enduml

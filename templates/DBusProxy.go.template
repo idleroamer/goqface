@@ -78,7 +78,7 @@ func (c *{{interface.proxy_name}}) watchSignals() {
 	}
 }
 
-func (c *{{interface.proxy_name}}) ConnectToServer() {
+func (c *{{interface.proxy_name}}) ConnectToRemoteObject() {
     c.connected = true
     c.setServiceName(c.serviceName)
     go c.watchSignals()

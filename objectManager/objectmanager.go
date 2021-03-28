@@ -240,7 +240,16 @@ func (o *objectManager) UnregisterObject(objectPath dbus.ObjectPath, interfaces 
 }
 
 func (o *objectManager) AddInterfaceAddedObserver(observer interface{ OnInterfacesAdded(string, dbus.ObjectPath) }) {
-	o.interfacesAddedObservers = append(o.interfacesAddedObservers, observer)
+	found := false
+	for i := range o.interfacesAddedObservers {
+		if o.interfacesAddedObservers[i] == observer {
+			found = true
+			break
+		}
+	}
+	if !found {
+		o.interfacesAddedObservers = append(o.interfacesAddedObservers, observer)
+	}
 }
 
 func (o *objectManager) RemoveInterfaceAddedObserver(observer interface{ OnInterfacesAdded(string, dbus.ObjectPath) }) bool {
@@ -255,7 +264,16 @@ func (o *objectManager) RemoveInterfaceAddedObserver(observer interface{ OnInter
 }
 
 func (o *objectManager) AddInterfaceRemovedObserver(observer interface{ OnInterfacesRemoved(string, dbus.ObjectPath) }) {
-	o.interfacesRemovedObservers = append(o.interfacesRemovedObservers, observer)
+	found := false
+	for i := range o.interfacesRemovedObservers {
+		if o.interfacesRemovedObservers[i] == observer {
+			found = true
+			break
+		}
+	}
+	if !found {
+		o.interfacesRemovedObservers = append(o.interfacesRemovedObservers, observer)
+	}
 }
 
 func (o *objectManager) RemoveInterfaceRemovedObserver(observer interface{ OnInterfacesRemoved(string, dbus.ObjectPath) }) bool {

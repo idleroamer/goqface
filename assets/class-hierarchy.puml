@@ -7,44 +7,58 @@ BackgroundColor<<Impl>> Wheat
 BorderColor<<Impl>> Tomato
 }
 
-interface AddressBookInterface {
+package "Client Process" <<Rectangle>> #Lavender {
+  entity DBusProxy
+}
+
+package "Service Process" <<Rectangle>> #LightBlue {
+  entity DBusAdapter
+  entity Implementation
+}
+
+interface Interface {
  <METHODS> 
 }
 
-entity AddressBookAdapter {
- Init(AddressBookInterface)
+left to right direction
+
+together {
+() METHODS
+() SIGNALS
+() PROPERTIES
+}
+
+DBusAdapter -> METHODS
+DBusAdapter --> SIGNALS
+DBusAdapter --> PROPERTIES
+
+METHODS -> DBusProxy 
+SIGNALS --> DBusProxy 
+PROPERTIES --> DBusProxy 
+
+entity DBusAdapter {
+ Init(Interface)
  Export()
- <PROPERTIES>
- <SIGNALS>
- <PROPERTIES_CHANGED_OBSERVERS>
 }
 
-entity AddressBookAdapterObserver <<Impl>> {
- <PROPERTY_CHANGED>
-}
-
-entity AddressBookProxy {
+entity DBusProxy {
  Init()
- ConnectToServer()
+ ConnectToRemoteObject()
+}
+
+entity Implementation <<Impl>> {
  <METHODS>
- <PROPERTIES>
- <PROPERTIES_CHANGED_OBSERVER>
- <SIGNAL_OBSERVERS>
+ <SET_PROPERTY_CALLBACK>
 }
 
-entity AddressBookProxyObserver <<Impl>> {
- <ON_PROPERTY_CHANGED>
- <ON_SIGNAL>
-}
 
-entity AddressBookImpl <<Impl>> {
- <METHODS>
- <SET_PROPERTY_HANDLER>
-}
-AddressBookInterface <|.. AddressBookImpl : implements
-AddressBookAdapter o-- AddressBookImpl: aggregates
+Interface <|.. Implementation : implements
+DBusAdapter o- Implementation: aggregates
 
-AddressBookProxy "1" --o "n" AddressBookProxyObserver
-AddressBookAdapter "1" --o "n" AddressBookAdapterObserver
+
+legend
+|<back:PaleGreen>   </back>| Auto-generated |
+|<back:Wheat>   </back>| to be implemented |
+endlegend
 
 @enduml

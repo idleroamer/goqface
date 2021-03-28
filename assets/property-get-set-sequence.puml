@@ -1,17 +1,28 @@
 @startuml
 title DBus Property 
-AddressBookProxy -> DBus: Set<Property>
-AddressBookAdapter <- DBus: SetProperty(PropertyName)
-alt <Property>Handler exists
-AddressBookAdapter ->  PropertyHandler: Set<Property>
-PropertyHandler -> AddressBookAdapter: return Set<Property>
+box "service process" #LightBlue
+participant ConcreteImpl #Wheat
+participant DBusAdapter #PaleGreen
+end box
+
+DBusAdapter -[hidden]> DBus: Set<Property>
+
+box "client process" #Lavender
+participant DBusProxy #PaleGreen
+end box
+
+DBusProxy -> DBus: Set<Property>
+
+DBusAdapter <- DBus: Set<Property>
+alt Set<Property>Callback exists
+DBusAdapter ->  ConcreteImpl: Set<Property>Callback
 end
-alt <Property>Handler not exists \n or returns nil error
-AddressBookAdapter -> DBus: PropertiesChanged
-DBus -> AddressBookProxy: PropertiesChanged 
-AddressBookProxy -> AddressBookProxy: Update<Property>Changed
+alt Set<Property>Callback does not exists \n or returns nil error
+DBusAdapter -> DBus: PropertiesChanged
+DBus -> DBusProxy: PropertiesChanged 
+DBusProxy -> DBusProxy: Update<Property>
 else value invalid
-AddressBookAdapter -> DBus: Return DBus error
-DBus -> AddressBookProxy: Return DBus error
+DBusAdapter --> DBus: Return DBus error
+DBus --> DBusProxy: Return DBus error
 end
 @enduml

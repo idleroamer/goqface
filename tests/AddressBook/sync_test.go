@@ -173,7 +173,7 @@ func TestSetProperty(t *testing.T) {
 	addressBookClient := &AddressBookClient{wg: &wg}
 	addressBookProxy.Init()
 	addressBookProxy.SetServiceName(server.Names()[0])
-	addressBookProxy.ConnectToServer()
+	addressBookProxy.ConnectToRemoteObject()
 
 	contacts := []addressbook.Contact{addressbook.Contact{1, "JohnDoe", "0198349343", addressbook.Friend}, addressbook.Contact{2, "MaxMusterman", "823439343", addressbook.Family}}
 
@@ -234,7 +234,7 @@ func TestSetPropertyNotAllowed(t *testing.T) {
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
 	addressBookProxy.SetServiceName(server.Names()[0])
-	addressBookProxy.ConnectToServer()
+	addressBookProxy.ConnectToRemoteObject()
 
 	errSetProp := addressBookProxy.SetCurrentContact(addressbook.Contact{Idx: -1})
 	if errSetProp.Error() != "Wrong value" {
@@ -268,7 +268,7 @@ func TestCallMethod(t *testing.T) {
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
 	addressBookProxy.SetServiceName(server.Names()[0])
-	addressBookProxy.ConnectToServer()
+	addressBookProxy.ConnectToRemoteObject()
 
 	addressBookClient := &AddressBookClient{wg: &wg}
 	addressBookProxy.AddContactsChangedObserver(addressBookClient)
@@ -315,7 +315,7 @@ func TestSignal(t *testing.T) {
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
 	addressBookProxy.SetServiceName(server.Names()[0])
-	addressBookProxy.ConnectToServer()
+	addressBookProxy.ConnectToRemoteObject()
 
 	addressBookClient := &AddressBookClient{wg: &wg}
 	addressBookProxy.AddContactCreatedObserver(addressBookClient)
@@ -359,17 +359,17 @@ func TestGetAllOnReadyChanged(t *testing.T) {
 	addressBookProxy.AddReadyChangedObserver(addressBookClient)
 	wg.Add(1)
 
-	addressBookProxy.ConnectToServer()
+	addressBookProxy.ConnectToRemoteObject()
 
 	if waitTimeout(&wg, time.Second) {
 		t.Errorf("Timed out waiting for wait group")
 	}
 	addressBookProxy.RemoveReadyChangedObserver(addressBookClient)
 	if addressBookProxy.Ready() != true {
-		t.Errorf("GetAll properties is not called on ConnectToServer!")
+		t.Errorf("GetAll properties is not called on ConnectToRemoteObject!")
 	}
 	if !reflect.DeepEqual(addressBookProxy.IntValues(), intValues) {
-		t.Errorf("GetAll properties is not called on ConnectToServer!")
+		t.Errorf("GetAll properties is not called on ConnectToRemoteObject!")
 	}
 }
 
@@ -397,7 +397,7 @@ func TestObjectManager(t *testing.T) {
 	addressBookProxy.Init()
 	addressBookProxy.SetObjectPath(addressBookProxy.ObjectPath() + "/ObjectManagement")
 
-	// test proper intialization per connection
+	// test proper intialization of ObjectManager per connection
 	systemdbus, _ := dbus.SystemBus()
 	goqface.ObjectManager(systemdbus).AddInterfaceAddedObserver(addressBookProxy)
 
@@ -405,7 +405,7 @@ func TestObjectManager(t *testing.T) {
 	addressBookProxy.AddReadyChangedObserver(addressBookClient)
 	wg.Add(1)
 
-	addressBookProxy.ConnectToServer()
+	addressBookProxy.ConnectToRemoteObject()
 
 	if waitTimeout(&wg, time.Second) {
 		t.Errorf("Timed out waiting for wait group")
@@ -414,7 +414,7 @@ func TestObjectManager(t *testing.T) {
 		t.Errorf("proxy not connected automatically to adapter!")
 	}
 	if !reflect.DeepEqual(addressBookProxy.IntValues(), intValues) {
-		t.Errorf("GetAll properties is not called on ConnectToServer!")
+		t.Errorf("GetAll properties is not called on ConnectToRemoteObject! have %v expected %v", addressBookProxy.IntValues(), intValues)
 	}
 
 	wg.Add(1)

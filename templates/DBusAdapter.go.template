@@ -19,14 +19,6 @@ import (
 )
 
 {% for interface in module.interfaces: %}
-type {{interface.cap_name}} interface {
-{% for operation in interface.operations %}
-{% if operation.comment %}
-{{operation.comment}}
-{% endif %}
-{{operation.cap_name}}({%- for parameter in operation.parameters -%}{{parameter.name}} {{parameter.go_type}},{%- endfor -%}) ({% if operation.has_return_value %}{{operation.go_type}}, {% endif %}*dbus.Error)
-{% endfor %}
-}
 
 type {{interface.cap_name}}Adapter struct {
     interfaceImpl {{interface.cap_name}}

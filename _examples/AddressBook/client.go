@@ -49,7 +49,7 @@ func main() {
 	addressBookSignalHandler := &AddressBookProxySignals{}
 	proxy := &addressbook.AddressBookProxy{Conn: conn}
 	proxy.Init()
-	proxy.ConnectToServer("goqface.addressbook")
+	proxy.ConnectToRemoteObject("goqface.addressbook")
 	proxy.AddContactsChangedObserver(addressBookSignalHandler)
 	proxy.SetContacts([]addressbook.Contact{addressbook.Contact{1, "JohnDoe", "TelNummer", 2}, addressbook.Contact{2, "MAxMusterman", "Handy", 234}})
 
