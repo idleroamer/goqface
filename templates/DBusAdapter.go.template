@@ -99,6 +99,14 @@ func (c *{{interface.cap_name}}Adapter) Export() {
 	c.exported = true
 }
 
+func (c *{{interface.cap_name}}Adapter) Close() {
+    goqface.ObjectManager(c.Conn).UnregisterObject(c.ObjectPath(), nil)
+	// unexport the adapter
+	c.Conn.Export(nil, c.objectPath, c.interfaceName)
+	c.Conn.Export(nil, c.objectPath, "org.freedesktop.DBus.Properties")
+	c.Conn.Export(nil, c.objectPath, "org.freedesktop.DBus.Introspectable")
+}
+
 func (c *{{interface.cap_name}}Adapter) ObjectPath() dbus.ObjectPath {
 	return c.objectPath
 }
@@ -169,7 +177,9 @@ func (c *{{interface.cap_name}}Adapter) Ready() bool {
 // emits the PropertiesChanged signal with the new value if EmitTrue
 func (c *{{interface.cap_name}}Adapter) AssignReady (v bool) {
     c.ready = v;
-    c.Props.SetMust(c.interfaceName, "ready", v)
+	if c.Props != nil {
+    	c.Props.SetMust(c.interfaceName, "ready", v)
+	}
 }
 
 {% for property in interface.properties %}
@@ -181,7 +191,9 @@ func (c *{{interface.cap_name}}Adapter) {{property.cap_name}}() {{property.go_ty
 // emits the PropertiesChanged signal with the new value if EmitTrue
 func (c *{{interface.cap_name}}Adapter) Assign{{property.cap_name}} (v {{property.go_type}}) {
     c.{{property.lower_name}} = v;
-    c.Props.SetMust(c.interfaceName, "{{property.name}}", v)
+	if c.Props != nil {
+    	c.Props.SetMust(c.interfaceName, "{{property.name}}", v)
+	}
 }
 
 {% if not property.readonly %}

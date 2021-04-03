@@ -84,30 +84,61 @@ func (o *objectManager) init(conn *dbus.Conn) {
 	go o.watchSignals()
 	conn.BusObject().AddMatchSignal("org.freedesktop.DBus", "NameOwnerChanged")
 	for _, s := range services {
-		o.watchService(s)
-	}
-}
-
-func (o *objectManager) watchService(service string) {
-	if matched, _ := regexp.MatchString(o.adapter.dbusServiceNamePattern, service); matched {
-		o.adapter.remoteObjects[service] = o.adapter.conn.Object(service, o.adapter.objectPath)
-		ch := make(chan *dbus.Call, 2)
-		o.adapter.remoteObjects[service].Go(o.adapter.interfaceName+".GetManagedObjects", 0, ch)
-		select {
-		case call := <-ch:
-			if call.Err == nil {
-				objectPaths := call.Body[0].(map[dbus.ObjectPath]map[string]map[string]dbus.Variant)
-				for k := range objectPaths {
-					o.objectServices[k] = service
-				}
-				o.adapter.remoteObjects[service].AddMatchSignal(o.adapter.interfaceName, "InterfacesAdded")
-				o.adapter.remoteObjects[service].AddMatchSignal(o.adapter.interfaceName, "InterfacesRemoved")
-				log.Printf("serive %s is watched for managed objects", service)
+		if matched, _ := regexp.MatchString(o.adapter.dbusServiceNamePattern, s); matched {
+			if serviceOwner, err := o.getNameOwner(s); err == nil {
+				o.watchService(serviceOwner)
 			} else {
-				log.Printf("Failed to GetManagedObjects of service %s due to \"%s\"", service, call.Err)
+				log.Printf("Failed to GetNameOwner of the service %v", s)
 			}
 		}
 	}
+}
+
+func (o *objectManager) watchService(serviceOwner string) {
+	o.adapter.remoteObjects[serviceOwner] = o.adapter.conn.Object(serviceOwner, o.adapter.objectPath)
+	if err := o.adapter.conn.AddMatchSignal(dbus.WithMatchInterface(o.adapter.interfaceName), dbus.WithMatchMember("InterfacesAdded"),
+		dbus.WithMatchSender(serviceOwner)); err != nil {
+		log.Printf("Failed to watch signal InterfacesAdded of on service %v with error %v", serviceOwner, err)
+	}
+	if err := o.adapter.conn.AddMatchSignal(dbus.WithMatchInterface(o.adapter.interfaceName), dbus.WithMatchMember("InterfacesRemoved"),
+		dbus.WithMatchSender(serviceOwner)); err != nil {
+		log.Printf("Failed to watch signal InterfacesRemoved of on service %v with error %v", serviceOwner, err)
+	}
+	ch := make(chan *dbus.Call, 2)
+	o.adapter.remoteObjects[serviceOwner].Go(o.adapter.interfaceName+".GetManagedObjects", 0, ch)
+	select {
+	case call := <-ch:
+		if call.Err == nil {
+			objectPaths := call.Body[0].(map[dbus.ObjectPath]map[string]map[string]dbus.Variant)
+			for k := range objectPaths {
+				o.objectServices[k] = serviceOwner
+				for _, observer := range o.interfacesAddedObservers {
+					go observer.OnInterfacesAdded(serviceOwner, k)
+				}
+			}
+		} else {
+			log.Printf("Failed to GetManagedObjects of service %s due to \"%s\"", serviceOwner, call.Err)
+		}
+	}
+	log.Printf("service %s watched for managed objects!", serviceOwner)
+}
+
+func (o *objectManager) getNameOwner(service string) (string, error) {
+	var uniqueId string
+	err := o.adapter.conn.BusObject().Call("org.freedesktop.DBus.GetNameOwner", 0, service).Store(&uniqueId)
+	return uniqueId, err
+}
+
+func (o *objectManager) removeService(serviceOwner string) {
+	for k, v := range o.objectServices {
+		if v == serviceOwner {
+			delete(o.objectServices, k)
+			for _, observer := range o.interfacesRemovedObservers {
+				go observer.OnInterfacesRemoved(v, k)
+			}
+		}
+	}
+	log.Printf("Service %v is disconnected!", serviceOwner)
 }
 
 func (o *objectManager) watchSignals() {
@@ -156,8 +187,14 @@ func (o *objectManager) watchSignals() {
 			var newOwner string
 			err := dbus.Store(v.Body, &name, &oldOwner, &newOwner)
 			if err == nil {
-				o.watchService(name)
-			} else if err != nil {
+				if matched, _ := regexp.MatchString(o.adapter.dbusServiceNamePattern, name); matched {
+					if newOwner != "" {
+						o.watchService(newOwner)
+					} else {
+						o.removeService(oldOwner)
+					}
+				}
+			} else {
 				log.Print(err)
 			}
 		}
@@ -239,7 +276,7 @@ func (o *objectManager) UnregisterObject(objectPath dbus.ObjectPath, interfaces 
 	}
 }
 
-func (o *objectManager) AddInterfaceAddedObserver(observer interface{ OnInterfacesAdded(string, dbus.ObjectPath) }) {
+func (o *objectManager) AddInterfacesAddedObserver(observer interface{ OnInterfacesAdded(string, dbus.ObjectPath) }) {
 	found := false
 	for i := range o.interfacesAddedObservers {
 		if o.interfacesAddedObservers[i] == observer {
@@ -252,7 +289,7 @@ func (o *objectManager) AddInterfaceAddedObserver(observer interface{ OnInterfac
 	}
 }
 
-func (o *objectManager) RemoveInterfaceAddedObserver(observer interface{ OnInterfacesAdded(string, dbus.ObjectPath) }) bool {
+func (o *objectManager) RemoveInterfacesAddedObserver(observer interface{ OnInterfacesAdded(string, dbus.ObjectPath) }) bool {
 	found := false
 	for i := range o.interfacesAddedObservers {
 		if o.interfacesAddedObservers[i] == observer {
@@ -263,7 +300,7 @@ func (o *objectManager) RemoveInterfaceAddedObserver(observer interface{ OnInter
 	return found
 }
 
-func (o *objectManager) AddInterfaceRemovedObserver(observer interface{ OnInterfacesRemoved(string, dbus.ObjectPath) }) {
+func (o *objectManager) AddInterfacesRemovedObserver(observer interface{ OnInterfacesRemoved(string, dbus.ObjectPath) }) {
 	found := false
 	for i := range o.interfacesRemovedObservers {
 		if o.interfacesRemovedObservers[i] == observer {
@@ -276,7 +313,7 @@ func (o *objectManager) AddInterfaceRemovedObserver(observer interface{ OnInterf
 	}
 }
 
-func (o *objectManager) RemoveInterfaceRemovedObserver(observer interface{ OnInterfacesRemoved(string, dbus.ObjectPath) }) bool {
+func (o *objectManager) RemoveInterfacesRemovedObserver(observer interface{ OnInterfacesRemoved(string, dbus.ObjectPath) }) bool {
 	found := false
 	for i := range o.interfacesRemovedObservers {
 		if o.interfacesRemovedObservers[i] == observer {
