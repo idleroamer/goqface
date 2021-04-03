@@ -164,7 +164,7 @@ func TestSetProperty(t *testing.T) {
 	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
 	addressBookImpl := &AddressBookImpl{addressbookAdapter}
 	addressbookAdapter.Init(addressBookImpl)
-	defer goqface.ObjectManager(server).UnregisterObject(addressbookAdapter.ObjectPath(), nil)
+	defer addressbookAdapter.Close()
 	addressbookAdapter.Export()
 
 	addressBookServerObserver := &AddressBookServerObserver{wg: &wg}
@@ -228,7 +228,7 @@ func TestSetPropertyNotAllowed(t *testing.T) {
 	addressBookImpl := &AddressBookImpl{addressbookAdapter}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
-	defer goqface.ObjectManager(server).UnregisterObject(addressbookAdapter.ObjectPath(), nil)
+	defer addressbookAdapter.Close()
 	addressbookAdapter.SetCurrentContactCallback(addressBookImpl)
 
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
@@ -263,7 +263,7 @@ func TestCallMethod(t *testing.T) {
 	addressBookImpl := &AddressBookImpl{addressbookAdapter}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
-	defer goqface.ObjectManager(server).UnregisterObject(addressbookAdapter.ObjectPath(), nil)
+	defer addressbookAdapter.Close()
 
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
@@ -287,8 +287,8 @@ func TestCallMethod(t *testing.T) {
 	}
 	// intentionally select a non-existing index
 	errCallMethod = addressBookProxy.SelectContact(1)
-	if errCallMethod == nil {
-		t.Errorf("remote func didn't return error as expected")
+	if errCallMethod.Error() != dbus.ErrMsgInvalidArg.Error() {
+		t.Errorf("remote func didn't return error as expected! have %v expected %v", errCallMethod.Error(), dbus.ErrMsgInvalidArg.Error())
 	}
 
 	addressBookProxy.RemoveContactsChangedObserver(addressBookClient)
@@ -310,7 +310,7 @@ func TestSignal(t *testing.T) {
 	addressBookImpl := &AddressBookImpl{addressbookAdapter}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
-	defer goqface.ObjectManager(server).UnregisterObject(addressbookAdapter.ObjectPath(), nil)
+	defer addressbookAdapter.Close()
 
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
@@ -346,7 +346,7 @@ func TestGetAllOnReadyChanged(t *testing.T) {
 	addressBookImpl := &AddressBookImpl{addressbookAdapter}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
-	defer goqface.ObjectManager(server).UnregisterObject(addressbookAdapter.ObjectPath(), nil)
+	defer addressbookAdapter.Close()
 	addressBookImpl.AssignReady(true)
 	intValues := []int{1, 2, 3}
 	addressBookImpl.AssignIntValues(intValues)
@@ -397,9 +397,9 @@ func TestObjectManager(t *testing.T) {
 	addressBookProxy.Init()
 	addressBookProxy.SetObjectPath(addressBookProxy.ObjectPath() + "/ObjectManagement")
 
-	// test proper intialization of ObjectManager per connection
+	// test proper intialization of ObjectManager per connection, just try system bus as well
 	systemdbus, _ := dbus.SystemBus()
-	goqface.ObjectManager(systemdbus).AddInterfaceAddedObserver(addressBookProxy)
+	goqface.ObjectManager(systemdbus).AddInterfacesAddedObserver(addressBookProxy)
 
 	addressBookClient := &AddressBookClient{wg: &wg}
 	addressBookProxy.AddReadyChangedObserver(addressBookClient)
@@ -418,11 +418,61 @@ func TestObjectManager(t *testing.T) {
 	}
 
 	wg.Add(1)
-	goqface.ObjectManager(server).UnregisterObject(addressbookAdapter.ObjectPath(), nil)
+	addressbookAdapter.Close()
 	if waitTimeout(&wg, time.Second) {
 		t.Errorf("Timed out waiting for wait group")
 	}
 	if addressBookProxy.Ready() != false {
 		t.Errorf("proxy not automatically informed about adapter object removal!")
+	}
+}
+
+func TestServiceRemoved(t *testing.T) {
+	var wg sync.WaitGroup
+	server, err := dbus.SessionBusPrivate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = server.Auth(nil); err != nil {
+		t.Fatal(err)
+	}
+	if err = server.Hello(); err != nil {
+		t.Fatal(err)
+	}
+	client, err := dbus.SessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{addressbookAdapter}
+	addressbookAdapter.Init(addressBookImpl)
+	addressbookAdapter.SetObjectPath(addressbookAdapter.ObjectPath() + "/ServiceRemoved")
+	addressbookAdapter.Export()
+	addressBookImpl.AssignReady(true)
+
+	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy.Init()
+	addressBookProxy.SetObjectPath(addressBookProxy.ObjectPath() + "/ServiceRemoved")
+
+	addressBookClient := &AddressBookClient{wg: &wg}
+	addressBookProxy.AddReadyChangedObserver(addressBookClient)
+	wg.Add(1)
+
+	addressBookProxy.ConnectToRemoteObject()
+
+	if waitTimeout(&wg, time.Second) {
+		t.Errorf("Timed out waiting for wait group")
+	}
+	if addressBookProxy.Ready() != true {
+		t.Errorf("proxy not connected automatically to adapter!")
+	}
+	wg.Add(1)
+	server.Close()
+	if waitTimeout(&wg, time.Second) {
+		t.Errorf("Timed out waiting for wait group")
+	}
+	if addressBookProxy.Ready() != false {
+		t.Errorf("proxy not automatically informed about service process disconnected!")
 	}
 }
