@@ -15,5 +15,25 @@ type {{interface.cap_name}} interface {
 {% endif %}
 {{operation.cap_name}}({%- for parameter in operation.parameters -%}{{parameter.name}} {{parameter.go_type}},{%- endfor -%}) ({% if operation.has_return_value %}{{operation.go_type}}, {% endif %}*dbus.Error)
 {% endfor %}
+{% for property in interface.properties %}
+{{property.cap_name}}() {{property.go_type}}
+Assign{{property.cap_name}} (value {{property.go_type}})
+{% endfor %}
+Ready() bool 
+AssignReady (value bool)
+
+AddReadyChangedObserver(observer interface{ OnReadyChanged(bool) })
+RemoveReadyChangedObserver(observer interface{ }) bool;
+
+{% for property in interface.properties %}
+Add{{property.cap_name}}ChangedObserver(observer interface{ On{{property.cap_name}}Changed({{property.go_type}}) })
+Remove{{property.cap_name}}ChangedObserver(observer interface{ }) bool
+{% endfor %}
+
+{% for signal in interface.signals %}
+Add{{signal.cap_name}}Observer(observer interface{ On{{signal.cap_name}}({%- for parameter in signal.parameters -%} {{parameter.name}} {{parameter.go_type}},{%- endfor -%}) });
+Remove{{signal.cap_name}}Observer(observer interface{ }) bool;
+{% endfor %}
+
 }
 {% endfor %}

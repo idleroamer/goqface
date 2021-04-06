@@ -65,21 +65,32 @@ def insert_unique_dependency_module(symbol, dependencies):
             if dependency and dependency.module != deducted_symbol.type.module and dependency not in dependencies:
                 dependencies.append(dependency)
 
-
-def interface_dependencies(self):
+def base_dependencies(self):
     dependencies = []
     for prop in self.properties:
         insert_unique_dependency_module(prop, dependencies)
-    for operation in self.operations:
-        for param in operation.parameters:
-            insert_unique_dependency_module(param, dependencies)
-        if operation.has_return_value:
-            insert_unique_dependency_module(operation.type, dependencies)
     for m in self.signals:
         for param in m.parameters:
             insert_unique_dependency_module(param, dependencies)
     return dependencies
 
+def interface_dependencies(self):
+    dependencies = []
+    for operation in self.operations:
+        for param in operation.parameters:
+            insert_unique_dependency_module(param, dependencies)
+        if operation.has_return_value:
+            insert_unique_dependency_module(operation.type, dependencies)
+    for base_dependency in base_dependencies(self):
+        dependencies.append(base_dependency)
+    return dependencies
+
+def base_imports(self):
+    imports = {}
+    for interface in self.interfaces:
+        for dependency in base_dependencies(interface):
+            imports[''.join(dependency.name_parts)] = dependency.tags.get('gomod')
+    return imports
 
 def interface_imports(self):
     imports = {}
@@ -104,6 +115,7 @@ FileSystem.strict = True
 Generator.strict = True
 
 setattr(qface.idl.domain.Module, 'interface_imports', property(interface_imports))
+setattr(qface.idl.domain.Module, 'base_imports', property(base_imports))
 setattr(qface.idl.domain.Module, 'struct_imports', property(struct_imports))
 
 setattr(qface.idl.domain.TypeSymbol, 'go_type', property(go_type))
@@ -148,6 +160,7 @@ for module in system.modules:
         module_path = '/'.join(module.name_parts)
         ctx.update({'path': module_path})
         generator.write('{{path}}/' + module.name_parts[-1] + 'Interface.go', 'Interface.go.template', ctx)
+        generator.write('{{path}}/' + module.name_parts[-1] + 'Base.go', 'Base.go.template', ctx)
         generator.write('{{path}}/' + module.name_parts[-1] + 'DBusAdapter.go', 'DBusAdapter.go.template', ctx)
         generator.write('{{path}}/' + module.name_parts[-1] + 'Enums.go', 'Enum.go.template', ctx)
         generator.write('{{path}}/' + module.name_parts[-1] + 'Structs.go', 'Struct.go.template', ctx)

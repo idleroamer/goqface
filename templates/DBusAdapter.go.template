@@ -23,15 +23,10 @@ import (
 type {{interface.cap_name}}Adapter struct {
     interfaceImpl {{interface.cap_name}}
 	{% for property in interface.properties %}
-	{{property.lower_name}} {{property.go_type}}
-	{% endfor %}
-	{% for property in interface.properties %}
     {% if not property.readonly %}
     set{{property.cap_name}}Callback interface{ Set{{property.cap_name}}({{property.name}} {{property.go_type}}) error}
-    {{property.lower_name}}ChangedObservers []interface{ On{{property.cap_name}}Changed( {{property.name}} {{property.go_type}})}
     {% endif %}
     {% endfor %}
-	ready          bool // to be used to query readiness of the server
 	Conn           *dbus.Conn
 	interfaceName  string
 	objectPath     dbus.ObjectPath
@@ -62,7 +57,7 @@ func (c *{{interface.cap_name}}Adapter) Init(v {{interface.cap_name}}) {
 		c.interfaceName: {
             {% for property in interface.properties %}
             "{{property.name}}": {
-                Value: &c.{{property.lower_name}},
+                Value: c.interfaceImpl.{{property.cap_name}}(),
                 {% if property.readonly %}
                 Writable: false,
                 {% else %}
@@ -78,13 +73,20 @@ func (c *{{interface.cap_name}}Adapter) Init(v {{interface.cap_name}}) {
             {% endfor %}
 			// a conventional property to be used on client side to check the connection and readiness of the server
 			"ready": {
-				Value: &c.ready,
+				Value: c.interfaceImpl.Ready(),
 				Writable: false,
 				Emit: prop.EmitTrue,
 				Callback: nil,
 			},
 		},
 	}
+	{% for property in interface.properties %}
+	c.interfaceImpl.Add{{property.cap_name}}ChangedObserver(c)
+	{% endfor %}
+	c.interfaceImpl.AddReadyChangedObserver(c)
+	{% for signal in interface.signals %}
+	c.interfaceImpl.Add{{signal.cap_name}}Observer(c);
+	{% endfor %}
 }
 
 func (c *{{interface.cap_name}}Adapter) Export() {
@@ -100,6 +102,14 @@ func (c *{{interface.cap_name}}Adapter) Export() {
 }
 
 func (c *{{interface.cap_name}}Adapter) Close() {
+	{% for property in interface.properties %}
+	c.interfaceImpl.Remove{{property.cap_name}}ChangedObserver(c)
+	{% endfor %}
+	c.interfaceImpl.RemoveReadyChangedObserver(c)
+	{% for signal in interface.signals %}
+	c.interfaceImpl.Remove{{signal.cap_name}}Observer(c);
+	{% endfor %}
+	
     goqface.ObjectManager(c.Conn).UnregisterObject(c.ObjectPath(), nil)
 	// unexport the adapter
 	c.Conn.Export(nil, c.objectPath, c.interfaceName)
@@ -169,31 +179,14 @@ func (c *{{interface.cap_name}}Adapter) {{operation.cap_name}}({%- for parameter
 }
 {% endfor %}
 
-func (c *{{interface.cap_name}}Adapter) Ready() bool {
-    return  c.ready
-}
-// assigns a new value to ready
-// updates the corresponding dbus property value
-// emits the PropertiesChanged signal with the new value if EmitTrue
-func (c *{{interface.cap_name}}Adapter) AssignReady (v bool) {
-    c.ready = v;
-	if c.Props != nil {
-    	c.Props.SetMust(c.interfaceName, "ready", v)
-	}
+func (c *{{interface.cap_name}}Adapter) OnReadyChanged (v bool) {
+    c.Props.SetMust(c.interfaceName, "ready", v)
 }
 
 {% for property in interface.properties %}
-func (c *{{interface.cap_name}}Adapter) {{property.cap_name}}() {{property.go_type}} {
-    return  c.{{property.lower_name}}
-}
-// assigns a new value to {{property.name}}
-// updates the corresponding dbus property value
-// emits the PropertiesChanged signal with the new value if EmitTrue
-func (c *{{interface.cap_name}}Adapter) Assign{{property.cap_name}} (v {{property.go_type}}) {
-    c.{{property.lower_name}} = v;
-	if c.Props != nil {
-    	c.Props.SetMust(c.interfaceName, "{{property.name}}", v)
-	}
+
+func (c *{{interface.cap_name}}Adapter) On{{property.cap_name}}Changed (v {{property.go_type}}) {
+    c.Props.SetMust(c.interfaceName, "{{property.name}}", v)
 }
 
 {% if not property.readonly %}
@@ -216,10 +209,7 @@ func set{{property.cap_name}}Callback(c *{{interface.cap_name}}Adapter) func(cha
 		        return dbus.MakeFailedError(err)
 		    }
 		}
-		c.{{property.lower_name}} = value
-		for _, observer := range c.{{property.lower_name}}ChangedObservers {
-            go observer.On{{property.cap_name}}Changed(value)
-        }
+		c.interfaceImpl.Assign{{property.cap_name}}(value)
 		return nil
 	}
 }
@@ -227,26 +217,8 @@ func set{{property.cap_name}}Callback(c *{{interface.cap_name}}Adapter) func(cha
 {% endif %}
 {% endfor %}
 
-{% for property in interface.properties %}
-{% if not property.readonly %}
-func (c *{{interface.cap_name}}Adapter) Add{{property.cap_name}}ChangedObserver(observer interface{ On{{property.cap_name}}Changed({{property.go_type}}) }) {
-    c.{{property.lower_name}}ChangedObservers = append(c.{{property.lower_name}}ChangedObservers, observer)
-}
-func (c *{{interface.cap_name}}Adapter) Remove{{property.cap_name}}ChangedObserver(observer interface{ }) bool {
-    found := false
-    for i := range c.{{property.lower_name}}ChangedObservers {
-        if c.{{property.lower_name}}ChangedObservers[i] == observer {
-            c.{{property.lower_name}}ChangedObservers = append(c.{{property.lower_name}}ChangedObservers[:i], c.{{property.lower_name}}ChangedObservers[i+1:]...)
-            found = true
-        }
-     }
-     return found
-}
-{% endif %}
-{% endfor %}
-
 {% for signal in interface.signals %}
-func (c *{{interface.cap_name}}Adapter) {{signal.cap_name}}({%- for parameter in signal.parameters -%} {{parameter.name}} {{parameter.go_type}},{%- endfor -%}) {
+func (c *{{interface.cap_name}}Adapter) On{{signal.cap_name}}({%- for parameter in signal.parameters -%} {{parameter.name}} {{parameter.go_type}},{%- endfor -%}) {
 	c.Conn.Emit(c.objectPath, c.interfaceName+".{{signal}}",
     {%- for parameter in signal.parameters -%}{{parameter.name}},{%- endfor -%})
 }
@@ -275,7 +247,5 @@ func (c *{{interface.cap_name}}Adapter) signalsIntrospection() []introspect.Sign
 	}
 	return ms
 }
-
-
 
 {% endfor %}
