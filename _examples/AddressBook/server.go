@@ -15,7 +15,7 @@ import (
 )
 
 type AddressBookImpl struct {
-	*addressbook.AddressBookAdapter
+	*addressbook.AddressBookBase
 }
 
 var Idx int
@@ -128,12 +128,12 @@ func main() {
 	}
 
 	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: conn}
-	addressBookImpl := &AddressBookImpl{addressbookAdapter}
+	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
 
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
 
-	fmt.Println("Listening on serviceName: " + addressbookServiceName + " objectPath: " + string(addressBookImpl.ObjectPath()) + "...")
+	fmt.Println("Listening on serviceName: " + addressbookServiceName + " objectPath: " + string(addressbookAdapter.ObjectPath()) + "...")
 
 	c := make(chan *dbus.Signal)
 	conn.Signal(c)

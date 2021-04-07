@@ -225,7 +225,7 @@ func (c *{{interface.cap_name}}Adapter) On{{signal.cap_name}}({%- for parameter 
 {% endfor %}
 
 func (c *{{interface.cap_name}}Adapter) signalsIntrospection() []introspect.Signal {
-	t := reflect.TypeOf(c)
+	t := reflect.TypeOf(c.interfaceImpl)
 	signals := map[string][]string{ {% for signal in interface.signals %}"{{signal.name}}":{
 	{%- for parameter in signal.parameters -%}"{{parameter.name}}",{%- endfor -%} },
 	{% endfor %} }

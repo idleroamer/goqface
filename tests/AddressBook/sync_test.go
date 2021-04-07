@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/godbus/dbus/v5"
+	"github.com/godbus/dbus/v5/introspect"
 	goqface "github.com/idleroamer/goqface/objectManager"
 	addressbook "github.com/idleroamer/goqface/tests/AddressBook/Tests/AddressBook"
 )
@@ -474,5 +475,45 @@ func TestServiceRemoved(t *testing.T) {
 	}
 	if addressBookProxy.Ready() != false {
 		t.Errorf("proxy not automatically informed about service process disconnected!")
+	}
+}
+
+func TestIntrospect(t *testing.T) {
+	server, err := dbus.SessionBusPrivate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err = server.Auth(nil); err != nil {
+		t.Fatal(err)
+	}
+	if err = server.Hello(); err != nil {
+		t.Fatal(err)
+	}
+	client, err := dbus.SessionBus()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	addressbookServiceName := "addressbook.introspect"
+
+	reply, err := server.RequestName(addressbookServiceName, dbus.NameFlagDoNotQueue)
+	if err != nil {
+		panic(err)
+	}
+	if reply != dbus.RequestNameReplyPrimaryOwner {
+		t.Fatal("name already taken")
+	}
+
+	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
+	addressbookAdapter.Init(addressBookImpl)
+	addressbookAdapter.Export()
+
+	introspect, err := introspect.Call(client.Object(addressbookServiceName, addressbookAdapter.ObjectPath()))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(introspect.Interfaces[2].Properties) != 7 {
+		t.Fatalf("Unexpected number of props in introspection, expected %v have %v", 7, len(introspect.Interfaces[2].Properties))
 	}
 }
