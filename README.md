@@ -1,33 +1,28 @@
 # goqface
 
-A minimal [dbus](https://dbus.freedesktop.org/doc/dbus-tutorial.html#whatis) framework which generates interfaces for [godbus](https://github.com/godbus/dbus) based on interface-definition-language [qface](https://doc.qt.io/QtIVI/idl-syntax.html).
+A minimal [dbus](https://dbus.freedesktop.org/doc/dbus-tutorial.html#whatis) framework which auto-generates bindings for [godbus](https://github.com/godbus/dbus) based on the interface-definition-language [qface](https://doc.qt.io/QtIVI/idl-syntax.html).
 
 ## Architecture
 
-Based on qface interface definitions `goqface` generates glue bindings for [godbus](https://github.com/godbus/dbus), effectively leaving only concrete implementation of `methods` open.
+`qface` describes APIs based on known concepts such as modules, interfaces, properties, structs, signals and enums. Based on these definitions `goqface` generates boiler-plate glue bindings for [godbus](https://github.com/godbus/dbus), leaving developers with only business logic implementation.
 
 There are four main components in `goqface` architecture. 
-* `Interface` declares `methods` defined in qface files 
-* `Implemenation` implements the `Interface` methods
-* `DBusAdapter` exports `methods`, `properties` and `signals` to dbus from `service process`
+* `Interface` declares the methods, properties and signals as described in qface
+* `Base` implements the properties/signals of the `Interface` and is to be embedded in `Implementation` 
+* `DBusAdapter` exports methods, properties and signals to bus from `service process`
 * `DBusProxy` represents the `DBusAdapter` on the `client process`
+* `Implementation` implements the `Interface` methods
 
-`Properties` and `signals` are part of `DBusAdapter`, therefore one needs to integrate the `DBusAdapter` into `Implementation` to be able to access `properties` or emit `signals`. 
-
-**_NOTE:_** Throughout examples and tests `DBusAdapter` is included as an anonymous nested struct in `Implementation`.
+where only the last components needs to be implemented and reset are auto-generated. 
 
 ![Class hierarchy](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.github.com/idleroamer/goqface/master/assets/class-hierarchy.puml)
 
 ## Initialization
 
-The initialization sequence starts by `DBusAdapter` `export`ing object to dbus. Then `DBusProxy` will attempt to fetch all `properties` upon `ConnectToRemoteObject` call, given the bus name of the `service` is known (should be achieved automatically by [Object Management](#Object-Management)).
-Afterward the status of the connection to the service can be checked by the conventional [ready property](#ready-property)]. On successful connection the `DBusProxy` is able to call `DBusAdapter` methods besides it will watch the signals and inform the registered [`observers`](#observers).
+The initialization sequence starts by `DBusAdapter` `export`ing an object to bus from `service process`. Then on the `client process`, given the bus name of service is known (achieved automatically by [Object Management](#Object-Management)), `DBusProxy` attempts to fetch all properties upon `ConnectToRemoteObject` call. Afterward the status of the connection to the service can be checked by the conventional [ready property](#ready-property)]. 
+On a successful connection the `DBusProxy` is able to call `DBusAdapter` methods and listen to its signals and in turn inform the registered [`observers`](#observers).
 
 ![Initial Sequence](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.github.com/idleroamer/goqface/master/assets/initial-adapter-proxy-sequence.puml)
-
-### Ready Property
-
-`ready` is a conventional auxiliary property to be used by `DBusProxy` to ensure that the connection to remote-object was successful and the remote-object `DBusAdapter` is actually ready to handle method calls.
 
 ## Properties
 
@@ -37,6 +32,10 @@ Properties are available as defined in qface interface both in `DBusAdapter` and
 Given a property is not defined `readonly` in qface, its value might be changed by `DBusProxy`. See [Properties Checks](#Properties-Checks) on how to optionally verify the assigned value on `DBusAdapter`. 
 
 ![Property get set](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.github.com/idleroamer/goqface/master/assets/property-get-set-sequence.puml)
+
+### Ready Property
+
+`ready` is a conventional auxiliary property to be checked to ensure that the connection to remote-object was successful and the remote-object `DBusAdapter` is actually ready to handle method calls.
 
 ## Methods
 
@@ -127,9 +126,16 @@ A predefined name pattern of bus name makes detection of related services possib
 
 ### Life time of objects
 
-One may end the a service lifetime on dbus by unregistering the `DBusAdapter`.
+`Close` will end the `DBusAdapter` service on bus.
+Consequently `ready` property of `DBusProxy` will be set to false, given one rely on [Object Management](#Object-Management) instead of setting service name explicitly.
 
 ```
-server, err := dbus.SessionBus()
-goqface.ObjectManager(server).UnregisterObject(DBusAdapter.ObjectPath(), nil)
+DBusAdapter.Close()
 ```
+
+## Limitation
+
+There are some limitation with regards to qface:
+* keyword [Model](https://doc.qt.io/qt-5/model-view-programming.html) is not supported
+* keyword [Flag](https://doc.qt.io/QtIVI/idl-syntax.html#enum-or-flag) is not supported
+* extending feature is not supported

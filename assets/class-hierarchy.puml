@@ -12,13 +12,26 @@ package "Client Process" <<Rectangle>> #Lavender {
 }
 
 package "Service Process" <<Rectangle>> #LightBlue {
-  entity DBusAdapter
+  entity Base
   entity Implementation
+    entity DBusAdapter
 }
 
 interface Interface {
  <METHODS> 
+ <PROPERTIES>
+ <OBSERVERS>
 }
+
+entity Base {
+ PROPERTIES
+ PROPRTIES OBSERVERS
+ SIGNAL OBSERVERS
+}
+
+Base -o Implementation: embeds
+Interface <|.. Implementation : implements
+Interface <|.. Base : implements
 
 left to right direction
 
@@ -51,9 +64,7 @@ entity Implementation <<Impl>> {
  <SET_PROPERTY_CALLBACK>
 }
 
-
-Interface <|.. Implementation : implements
-DBusAdapter o- Implementation: aggregates
+DBusAdapter -o Implementation: aggregates
 
 
 legend
