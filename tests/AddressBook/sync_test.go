@@ -23,7 +23,7 @@ type Foo struct {
 }
 
 type AddressBookImpl struct {
-	*addressbook.AddressBookAdapter
+	*addressbook.AddressBookBase
 }
 
 type AddressBookClient struct {
@@ -162,7 +162,7 @@ func TestSetProperty(t *testing.T) {
 	}
 
 	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{addressbookAdapter}
+	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	defer addressbookAdapter.Close()
 	addressbookAdapter.Export()
@@ -198,8 +198,8 @@ func TestSetProperty(t *testing.T) {
 		t.Errorf("failed to get %v contactsChanged signal, got %v", 1, addressBookClient.contactsChanged)
 	}
 
-	if !reflect.DeepEqual(contacts, addressbookAdapter.Contacts()) {
-		t.Errorf("failed to set remote object prop! have %v want %v", addressbookAdapter.Contacts(), contacts)
+	if !reflect.DeepEqual(contacts, addressBookImpl.Contacts()) {
+		t.Errorf("failed to set remote object prop! have %v want %v", addressBookImpl.Contacts(), contacts)
 	}
 
 	otherContacts := []addressbook.Contact{addressbook.Contact{3, "NoName", "NoNumber", addressbook.Family}}
@@ -225,7 +225,7 @@ func TestSetPropertyNotAllowed(t *testing.T) {
 	}
 
 	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{addressbookAdapter}
+	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
 	defer addressbookAdapter.Close()
@@ -260,7 +260,7 @@ func TestCallMethod(t *testing.T) {
 	}
 
 	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{addressbookAdapter}
+	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
 	defer addressbookAdapter.Close()
@@ -282,8 +282,8 @@ func TestCallMethod(t *testing.T) {
 		t.Errorf("Timed out waiting for wait group")
 	}
 
-	if !reflect.DeepEqual(addressBookProxy.Contacts(), addressbookAdapter.Contacts()) {
-		t.Errorf("Object value mismatch! have %v want %v", addressBookProxy.Contacts(), addressbookAdapter.Contacts())
+	if !reflect.DeepEqual(addressBookProxy.Contacts(), addressBookImpl.Contacts()) {
+		t.Errorf("Object value mismatch! have %v want %v", addressBookProxy.Contacts(), addressBookImpl.Contacts())
 	}
 	// intentionally select a non-existing index
 	errCallMethod = addressBookProxy.SelectContact(1)
@@ -307,7 +307,7 @@ func TestSignal(t *testing.T) {
 	}
 
 	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{addressbookAdapter}
+	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
 	defer addressbookAdapter.Close()
@@ -343,7 +343,7 @@ func TestGetAllOnReadyChanged(t *testing.T) {
 	}
 
 	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{addressbookAdapter}
+	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
 	defer addressbookAdapter.Close()
@@ -385,7 +385,7 @@ func TestObjectManager(t *testing.T) {
 	}
 
 	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{addressbookAdapter}
+	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.SetObjectPath(addressbookAdapter.ObjectPath() + "/ObjectManagement")
 	addressbookAdapter.Export()
@@ -445,7 +445,7 @@ func TestServiceRemoved(t *testing.T) {
 	}
 
 	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{addressbookAdapter}
+	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.SetObjectPath(addressbookAdapter.ObjectPath() + "/ServiceRemoved")
 	addressbookAdapter.Export()
