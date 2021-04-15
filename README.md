@@ -72,12 +72,12 @@ import (
 	goqface "github.com/idleroamer/goqface/objectManager"
 )
 
-//go:generate python3 $GOPATH/pkg/mod/github.com/idleroamer/goqface@v<VERSION>/codegen.py --src <SOURCE_PATH_CONTAINING_QFACE_FILES> --input <LIST_OF_INPUTS>
+//go:generate python3 $GOPATH/pkg/mod/github.com/idleroamer/goqface@v<VERSION>/codegen.py  --input <LIST_OF_INPUTS> --dependency [LIST_OF_DEPENDENCIES]
 //go:generate gofmt -w <PATH_OF_GENERATED_FILES>
 ```
-`--src` argument is important for goqface to locate the [module interdependencies](#Module-Interdependency) otherwise current directory (where go generator file located) is taken. 
-
 `--input` list of all qface input files to generate bindings for.
+
+`--dependency` optional path to [interdependencies](#Module-Interdependency)
 
 `--output` optional output path of generated files otherwise module name will be used as path.
 
@@ -96,15 +96,9 @@ import (
 ## Module Interdependency
 
 Modules may import other modules via `import` keyword followed by the imported module name and version.
-In order for `goqface` generator to be able to find the imported modules, 
-the `@gomod` annotation on `imported module` needs to point to the path where generated files are located.
+The goqface creates the necessary import annotation for each of input files so that it can be used in the client code. The annotations are stored in the `.go.annotate` yaml file next to each `.qface`.
 
-```
-@gomod: "github.com/idleroamer/goqface/<PATH_TO_OUTPUT>/Foo/Yoo"
-module Foo.Yoo 
-```
-
-`<PATH_TO_OUTPUT>` defined in [generation step](#go-generate).
+**_NOTE:_** `go module` should be initialized (`go mod int`) where outputs are located for a proper import annotation.
 
 ## Object Management
 

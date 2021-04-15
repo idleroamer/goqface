@@ -1,6 +1,6 @@
 package main
 
-//go:generate python3 ../../codegen.py --input AddressBook.qface
+//go:generate python3 ../../generator/codegen.py --input AddressBook.qface
 //go:generate gofmt -w Examples
 
 import (

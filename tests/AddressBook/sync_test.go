@@ -15,7 +15,8 @@ import (
 	addressbook "github.com/idleroamer/goqface/tests/AddressBook/Tests/AddressBook"
 )
 
-//go:generate python3 ../../codegen.py --input AddressBook.qface
+//go:generate python3 ../../generator/codegen.py --input AddressBook.qface
+
 //go:generate gofmt -w Tests
 
 type Foo struct {

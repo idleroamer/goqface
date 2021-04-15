@@ -1,4 +1,3 @@
-@gomod: "github.com/idleroamer/goqface/test/Test/Models/AddressBook"
 module Tests.AddressBook 1.0;
 
 
