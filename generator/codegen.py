@@ -11,12 +11,12 @@ import os
 logger = logging.getLogger(__name__)
 
 parser = argparse.ArgumentParser(description='Generates bindings for godbus based on the qface IDL.')
-parser.add_argument('--dependency', dest='dependency', type=str, required=False, nargs='+', default=[],
-                    help='path to dependency .qface files, leave empty if there is no interdependency')
 parser.add_argument('--input', dest='input', type=str, required=True, nargs='+',
-                    help='qface interface relative to src path')
+                    help='qface input interfaces or path to them, folders will be walked')
 parser.add_argument('--output', dest='output', type=str, required=False, default='.',
                     help='path to place the generated code relative to go module base path, default value is current directory')
+parser.add_argument('--dependency', dest='dependency', type=str, required=False, nargs='+', default=[],
+                    help='path to dependency .qface files, leave empty if there is no interdependency')
 args = parser.parse_args()
 
 yaml_annotate = ".go.annotate"
@@ -226,14 +226,11 @@ setattr(qface.idl.domain.Signal, 'param_size', property(param_size))
 
 def generate():
     here = Path(__file__).dirname()
-    inputs = []
-    for i in args.input:
-        inputs.append(i)
-    generate_annotate(inputs, args.output)
-    system = FileSystem.parse(inputs)
+    generate_annotate(args.input, args.output)
+    system = FileSystem.parse(args.input)
     module_to_generate = [module.name for module in system.modules]
-    system = FileSystem.parse(inputs + args.dependency)
-    merge_generated_annotation(inputs + args.dependency, system)
+    system = FileSystem.parse(args.input + args.dependency)
+    merge_generated_annotation(args.input + args.dependency, system)
     output = args.output
     generator = Generator(search_path=Path(here / 'templates'))
     generator.destination = output

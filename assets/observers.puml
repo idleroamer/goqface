@@ -1,10 +1,13 @@
 @startuml
+!pragma teoz true
 title observers
 box "service process" #LightBlue
 collections ServerObserver #Wheat
 participant DBusAdapter #PaleGreen
 end box
 
+ServerObserver -> DBusAdapter : Add<Signal>Observer\nAdd<PropertyChanged
+& ClientObserver -> DBusProxy : Add<Signal>Observer\nAdd<PropertyChanged
 group signal emission
 DBusAdapter -> DBus: <Signal>
 box "client process" #Lavender

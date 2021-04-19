@@ -19,7 +19,7 @@ where only the last components needs to be implemented and reset are auto-genera
 
 ## Initialization
 
-The initialization sequence starts by `DBusAdapter` `export`ing an object to bus from `service process`. Then on the `client process`, given the bus name of service is known (achieved automatically by [Object Management](#Object-Management)), `DBusProxy` attempts to fetch all properties upon `ConnectToRemoteObject` call. Afterward the status of the connection to the service can be checked by the conventional [ready property](#ready-property)]. 
+The initialization sequence starts by `DBusAdapter` `export`ing an object to bus from `service process`. Then on the `client process`, given the bus name of service is known (achieved automatically by [Object Management](#Object-Management)), `DBusProxy` attempts to fetch all properties upon `ConnectToRemoteObject` call. Afterward the status of the connection to the service can be checked by the conventional [ready property](#ready-property). 
 On a successful connection the `DBusProxy` is able to call `DBusAdapter` methods and listen to its signals and in turn inform the registered [`observers`](#observers).
 
 ![Initial Sequence](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.github.com/idleroamer/goqface/master/assets/initial-adapter-proxy-sequence.puml)
@@ -39,7 +39,7 @@ Given a property is not defined `readonly` in qface, its value might be changed 
 
 ## Methods
 
-Remote method calls are initiated by `DBusProxy` and invoke the corresponding `DBusAdapter` function. Beside normal code path [exceptions](#Exceptions) can be handled as well.
+Remote method calls are initiated by `DBusProxy` invoking the corresponding `DBusAdapter` function. Beside normal code path [exceptions](#Exceptions) can be handled as well.
 
 ## Signals
 
