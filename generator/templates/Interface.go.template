@@ -17,10 +17,10 @@ type {{interface.cap_name}} interface {
 {% endfor %}
 {% for property in interface.properties %}
 {{property.cap_name}}() {{property.go_type}}
-Assign{{property.cap_name}} (value {{property.go_type}})
+Set{{property.cap_name}} (value {{property.go_type}}) error
 {% endfor %}
 Ready() bool 
-AssignReady (value bool)
+SetReady (value bool)
 
 AddReadyChangedObserver(observer interface{ OnReadyChanged(bool) })
 RemoveReadyChangedObserver(observer interface{ }) bool;

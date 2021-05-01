@@ -2,3 +2,4 @@ venv*
 .idea
 _examples/AddressBook/Examples
 .vscode
+*.go.annotate

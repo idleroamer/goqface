@@ -29,7 +29,7 @@ On a successful connection the `DBusProxy` is able to call `DBusAdapter` methods
 Properties are available as defined in qface interface both in `DBusAdapter` and `DBusProxy`.
 `DBusProxy` fetches all `properties` (given a successful connection) on `ConnectToRemoteObjec` method call. Properties are always in sync between `DBusProxy` and `DBusAdapter` by the mean of `PropertiesChanged` signal.
 
-Given a property is not defined `readonly` in qface, its value might be changed by `DBusProxy`. See [Properties Checks](#Properties-Checks) on how to optionally verify the assigned value on `DBusAdapter`. 
+Given a property is not defined `readonly` in qface, its value might be changed by `DBusProxy`. See [Set Properties](#Set-Properties) on how to optionally *override* the default behaviour of `Base`. 
 
 ![Property get set](http://www.plantuml.com/plantuml/proxy?cache=no&src=https://raw.github.com/idleroamer/goqface/master/assets/property-get-set-sequence.puml)
 
@@ -56,9 +56,19 @@ Signals defined in qface interface may be invoked from `DBusAdapter` by calling 
 `methods` could handle unexpected inputs and states by returning an optional `dbus.Error`.
 
 
-### Properties Checks
+### Set Properties
 
-It is possible to block unexpected values assigned to `properties` and optionally return an `error` with more info to the client. Simply assign a struct to `DBusAdapter.Set<Property>Callback()` which implements `Set<Property>` interface.
+*Override* `Set<Property>` functions of the `Base` to verify values before assignment. Pass correct values to `Set<Property>` of the `Base` to ensure proper propagation to `DBusAdapter` and block wrong ones with an error message.
+
+```
+func (c *Implemenation) Set<Property>(value <Property>Value) error {
+	if value is accepted {
+		return c.Base.SetCurrentContact(value)
+	} else {
+		return errors.New("Unexpected value!")
+	}
+}
+```
 
 ## Go Generate
 
