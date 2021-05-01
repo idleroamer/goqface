@@ -33,7 +33,7 @@ func (c *{{interface.cap_name}}Base) Ready() bool {
     return  c.ready
 }
 
-func (c *{{interface.cap_name}}Base) AssignReady (value bool) {
+func (c *{{interface.cap_name}}Base) SetReady (value bool) {
 	if !reflect.DeepEqual(c.ready, value) {
         c.ready = value
 		for _, observer := range c.readyChangedObservers {
@@ -70,13 +70,14 @@ func (c *{{interface.cap_name}}Base) RemoveReadyChangedObserver(observer interfa
 func (c *{{interface.cap_name}}Base) {{property.cap_name}}() {{property.go_type}} {
     return c.{{property.lower_name}}
 }
-func (c *{{interface.cap_name}}Base) Assign{{property.cap_name}} (value {{property.go_type}}) {
+func (c *{{interface.cap_name}}Base) Set{{property.cap_name}} (value {{property.go_type}}) error {
 	if !reflect.DeepEqual(c.{{property.lower_name}}, value) {
         c.{{property.lower_name}} = value
-		for _, observer := range c.{{property.lower_name}}ChangedObservers {
+        for _, observer := range c.{{property.lower_name}}ChangedObservers {
             go observer.On{{property.cap_name}}Changed(value)
         }
-	}
+    }
+    return nil
 }
 
 func (c *{{interface.cap_name}}Base) Add{{property.cap_name}}ChangedObserver(observer interface{ On{{property.cap_name}}Changed({{property.go_type}}) }) {

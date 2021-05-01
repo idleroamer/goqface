@@ -47,7 +47,7 @@ func (c *AddressBookImpl) CreateNewContact() *dbus.Error {
 	contact.Name = "Name" + strconv.Itoa(contact.Idx)
 	contact.Number = "12345" + strconv.Itoa(contact.Idx)
 	contact.Type = addressbook.Family
-	c.AssignContacts(append(c.Contacts(), contact))
+	c.SetContacts(append(c.Contacts(), contact))
 	fmt.Printf("newContactCreated: %v", len(c.Contacts()))
 	c.ContactCreated(contact)
 	return nil
@@ -58,7 +58,7 @@ func (c *AddressBookImpl) SelectContact(contactId int) *dbus.Error {
 	for _, entry := range c.Contacts() {
 		if entry.Idx == contactId {
 			if c.CurrentContact().Idx != contactId {
-				c.AssignCurrentContact(entry)
+				c.SetCurrentContact(entry)
 				fmt.Printf("SelectContact: %d", contactId)
 			} else {
 				fmt.Printf("SelectContact already selected: %d", contactId)
@@ -92,7 +92,7 @@ func (c *AddressBookImpl) DeleteContact(contactId int) (bool, *dbus.Error) {
 		tmpContacts[j] = addressbook.Contact{}
 	}
 	if found {
-		c.AssignContacts(tmpContacts)
+		c.SetContacts(tmpContacts)
 	} else {
 		return true, dbus.MakeFailedError(dbus.ErrMsgInvalidArg)
 	}
@@ -110,10 +110,11 @@ func (c *AddressBookImpl) UpdateContact(contactId int, contact addressbook.Conta
 }
 
 func (c *AddressBookImpl) SetCurrentContact(value addressbook.Contact) error {
-	if value.Idx == -1 {
+	if value.Idx != -1 {
+		return c.AddressBookBase.SetCurrentContact(value)
+	} else {
 		return errors.New("Wrong value")
 	}
-	return nil
 }
 
 func (c *AddressBookClient) OnContactsChanged(contacts []addressbook.Contact) {
@@ -229,9 +230,12 @@ func TestSetPropertyNotAllowed(t *testing.T) {
 	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
 	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
+	addressBookImpl.SetCurrentContact(addressbook.Contact{Idx: 2})
+	if addressBookImpl.CurrentContact().Idx != 2 {
+		t.Errorf("setCurrentContact failed to accept right value")
+	}
 	addressbookAdapter.Export()
 	defer addressbookAdapter.Close()
-	addressbookAdapter.SetCurrentContactCallback(addressBookImpl)
 
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
@@ -242,11 +246,16 @@ func TestSetPropertyNotAllowed(t *testing.T) {
 	if errSetProp.Error() != "Wrong value" {
 		t.Errorf("setCurrentContact accepted wrong value")
 	}
+	if addressBookImpl.CurrentContact().Idx != 2 {
+		t.Errorf("setCurrentContact accepted wrong value")
+	}
 	errSetProp2 := addressBookProxy.SetCurrentContact(addressbook.Contact{Idx: 1})
 	if errSetProp2 != nil {
-		t.Errorf("setCurrentContact failed to accept wrong value")
+		t.Errorf("setCurrentContact failed to accept right value")
 	}
-
+	if addressBookImpl.CurrentContact().Idx != 1 {
+		t.Errorf("setCurrentContact failed to accept right value")
+	}
 }
 
 func TestCallMethod(t *testing.T) {
@@ -349,9 +358,9 @@ func TestGetAllOnReadyChanged(t *testing.T) {
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
 	defer addressbookAdapter.Close()
-	addressBookImpl.AssignReady(true)
+	addressBookImpl.SetReady(true)
 	intValues := []int{1, 2, 3}
-	addressBookImpl.AssignIntValues(intValues)
+	addressBookImpl.SetIntValues(intValues)
 
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
@@ -391,9 +400,9 @@ func TestObjectManager(t *testing.T) {
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.SetObjectPath(addressbookAdapter.ObjectPath() + "/ObjectManagement")
 	addressbookAdapter.Export()
-	addressBookImpl.AssignReady(true)
+	addressBookImpl.SetReady(true)
 	intValues := []int{1, 2, 3}
-	addressBookImpl.AssignIntValues(intValues)
+	addressBookImpl.SetIntValues(intValues)
 
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
@@ -451,7 +460,7 @@ func TestServiceRemoved(t *testing.T) {
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.SetObjectPath(addressbookAdapter.ObjectPath() + "/ServiceRemoved")
 	addressbookAdapter.Export()
-	addressBookImpl.AssignReady(true)
+	addressBookImpl.SetReady(true)
 
 	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()

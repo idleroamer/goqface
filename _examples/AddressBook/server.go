@@ -27,7 +27,7 @@ func (addressbookInterface *AddressBookImpl) CreateNewContact() *dbus.Error {
 	contact.Name = "Name" + strconv.Itoa(contact.Idx)
 	contact.Number = "12345" + strconv.Itoa(contact.Idx)
 	contact.Type = addressbook.Family
-	addressbookInterface.AssignContacts(append(addressbookInterface.Contacts(), contact))
+	addressbookInterface.SetContacts(append(addressbookInterface.Contacts(), contact))
 	fmt.Printf("newContactCreated: %v", len(addressbookInterface.Contacts()))
 	addressbookInterface.ContactCreated(contact)
 	return nil
@@ -38,7 +38,7 @@ func (addressbookInterface *AddressBookImpl) SelectContact(contactId int) *dbus.
 	for _, entry := range addressbookInterface.Contacts() {
 		if entry.Idx == contactId {
 			if addressbookInterface.CurrentContact().Idx != contactId {
-				addressbookInterface.AssignCurrentContact(entry)
+				addressbookInterface.SetCurrentContact(entry)
 				fmt.Printf("SelectContact: %d", contactId)
 			} else {
 				fmt.Printf("SelectContact already selected: %d", contactId)
@@ -72,7 +72,7 @@ func (addressbookInterface *AddressBookImpl) DeleteContact(contactId int) (bool,
 		tmpContacts[j] = addressbook.Contact{}
 	}
 	if found {
-		addressbookInterface.AssignContacts(tmpContacts)
+		addressbookInterface.SetContacts(tmpContacts)
 	} else {
 		return true, dbus.MakeFailedError(dbus.ErrMsgInvalidArg)
 	}
