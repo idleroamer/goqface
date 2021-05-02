@@ -68,7 +68,7 @@ func (o *objectManager) init(conn *dbus.Conn) {
 
 	o.adapter.dbusServiceNamePattern = os.Getenv("DBUS_SERVICE_NAME_PATTERN")
 	if o.adapter.dbusServiceNamePattern == "" {
-		o.adapter.dbusServiceNamePattern = "qface.registry"
+		o.adapter.dbusServiceNamePattern = "qface.service"
 	}
 	postfix := strings.ReplaceAll(conn.Names()[0], ".", "")
 	postfix = strings.ReplaceAll(postfix, ":", "")
@@ -109,11 +109,16 @@ func (o *objectManager) watchService(serviceOwner string) {
 	select {
 	case call := <-ch:
 		if call.Err == nil {
-			objectPaths := call.Body[0].(map[dbus.ObjectPath]map[string]map[string]dbus.Variant)
-			for k := range objectPaths {
-				o.objectServices[k] = serviceOwner
-				for _, observer := range o.interfacesAddedObservers {
-					go observer.OnInterfacesAdded(serviceOwner, k)
+			if objectPaths, ok := call.Body[0].(map[dbus.ObjectPath]map[string]map[string]dbus.Variant); ok {
+				for k := range objectPaths {
+					o.objectServices[k] = serviceOwner
+					for _, observer := range o.interfacesAddedObservers {
+						go observer.OnInterfacesAdded(serviceOwner, k)
+					}
+				}
+			} else {
+				if call.Body[0] != nil {
+					log.Printf("Response of GetManagedObjects of service %s is not in expected format", serviceOwner)
 				}
 			}
 		} else {
