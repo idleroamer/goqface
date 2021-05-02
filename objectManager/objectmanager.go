@@ -68,7 +68,7 @@ func (o *objectManager) init(conn *dbus.Conn) {
 
 	o.adapter.dbusServiceNamePattern = os.Getenv("DBUS_SERVICE_NAME_PATTERN")
 	if o.adapter.dbusServiceNamePattern == "" {
-		o.adapter.dbusServiceNamePattern = "qface.registry"
+		o.adapter.dbusServiceNamePattern = "qface.service"
 	}
 	postfix := strings.ReplaceAll(conn.Names()[0], ".", "")
 	postfix = strings.ReplaceAll(postfix, ":", "")
