@@ -242,14 +242,14 @@ def generate():
             module_path = '/'.join(module.name_parts)
             ctx.update({'path': module_path})
             if module.interfaces:
-                generator.write('{{path}}/' + module.name_parts[-1] + 'Interface.go', 'Interface.go.template', ctx)
-                generator.write('{{path}}/' + module.name_parts[-1] + 'Base.go', 'Base.go.template', ctx)
-                generator.write('{{path}}/' + module.name_parts[-1] + 'DBusAdapter.go', 'DBusAdapter.go.template', ctx)
-                generator.write('{{path}}/' + module.name_parts[-1] + 'DBusProxy.go', 'DBusProxy.go.template', ctx)
+                generator.write('{{path}}/' + module.name_parts[-1].lower() + '_interface.go', 'interface.go.template', ctx)
+                generator.write('{{path}}/' + module.name_parts[-1].lower() + '_base.go', 'base.go.template', ctx)
+                generator.write('{{path}}/' + module.name_parts[-1].lower() + '_dbus_adapter.go', 'dbus_adapter.go.template', ctx)
+                generator.write('{{path}}/' + module.name_parts[-1].lower() + '_dbus_proxy.go', 'dbus_proxy.go.template', ctx)
             if module.enums:
-                generator.write('{{path}}/' + module.name_parts[-1] + 'Enums.go', 'Enum.go.template', ctx)
+                generator.write('{{path}}/' + module.name_parts[-1].lower() + '_enum.go', 'enum.go.template', ctx)
             if module.structs:
-                generator.write('{{path}}/' + module.name_parts[-1] + 'Structs.go', 'Struct.go.template', ctx)
+                generator.write('{{path}}/' + module.name_parts[-1].lower() + '_struct.go', 'struct.go.template', ctx)
 
 
 if __name__ == '__main__':
