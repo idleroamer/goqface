@@ -402,6 +402,8 @@ func TestObjectManager(t *testing.T) {
 	addressbookAdapter.Export()
 	addressBookImpl.SetReady(true)
 	intValues := []int{1, 2, 3}
+	debt := 3.141592653589793238
+	addressBookImpl.SetDebt(debt)
 	addressBookImpl.SetIntValues(intValues)
 
 	addressBookProxy := &AddressBook.AddressBookProxy{Conn: client}
@@ -426,6 +428,9 @@ func TestObjectManager(t *testing.T) {
 	}
 	if !reflect.DeepEqual(addressBookProxy.IntValues(), intValues) {
 		t.Errorf("GetAll properties is not called on ConnectToRemoteObject! have %v expected %v", addressBookProxy.IntValues(), intValues)
+	}
+	if !reflect.DeepEqual(addressBookProxy.Debt(), debt) {
+		t.Errorf("failed to set real property value! have %v want %v", addressBookProxy.Debt(), debt)
 	}
 
 	wg.Add(1)
@@ -523,7 +528,7 @@ func TestIntrospect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(introspect.Interfaces[2].Properties) != 7 {
-		t.Fatalf("Unexpected number of props in introspection, expected %v have %v", 7, len(introspect.Interfaces[2].Properties))
+	if len(introspect.Interfaces[2].Properties) != 8 {
+		t.Fatalf("Unexpected number of props in introspection, expected %v have %v", 8, len(introspect.Interfaces[2].Properties))
 	}
 }

@@ -25,7 +25,7 @@ yaml_annotate = ".go.annotate"
 def go_type(self: object) -> object:
     if self.type.is_primitive:
         if self.type.name == 'real':
-            return 'float32'
+            return 'float64'
         return self.type
     elif self.type.is_void:
         return "what"
