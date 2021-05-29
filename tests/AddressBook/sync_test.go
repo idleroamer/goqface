@@ -3,6 +3,7 @@ package addressbook
 import (
 	"errors"
 	"fmt"
+	"log"
 	"reflect"
 	"strconv"
 	"sync"
@@ -127,6 +128,7 @@ func (c *AddressBookClient) OnContactCreated(contacts AddressBook.Contact) {
 }
 
 func (c *AddressBookClient) OnReadyChanged(ready bool) {
+	log.Printf("ready value %v", ready)
 	c.wg.Done()
 }
 
@@ -477,17 +479,27 @@ func TestServiceRemoved(t *testing.T) {
 
 	addressBookProxy.ConnectToRemoteObject()
 
+	log.Printf("after connect to remote")
+
 	if waitTimeout(&wg, time.Second) {
 		t.Errorf("Timed out waiting for wait group")
 	}
+
+	log.Printf("after first wait")
 	if addressBookProxy.Ready() != true {
 		t.Errorf("proxy not connected automatically to adapter!")
 	}
+
+	log.Printf("after check ready")
 	wg.Add(1)
 	server.Close()
+
+	log.Printf("after close server")
 	if waitTimeout(&wg, time.Second) {
 		t.Errorf("Timed out waiting for wait group")
 	}
+
+	log.Printf("after second wait")
 	if addressBookProxy.Ready() != false {
 		t.Errorf("proxy not automatically informed about service process disconnected!")
 	}
