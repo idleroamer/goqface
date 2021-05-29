@@ -12,7 +12,7 @@ import (
 	"github.com/godbus/dbus/v5"
 	"github.com/godbus/dbus/v5/introspect"
 	goqface "github.com/idleroamer/goqface/objectManager"
-	addressbook "github.com/idleroamer/goqface/tests/AddressBook/Tests/AddressBook"
+	"github.com/idleroamer/goqface/tests/AddressBook/Tests/AddressBook"
 )
 
 //go:generate python3 ../../generator/codegen.py --input AddressBook.qface
@@ -25,7 +25,7 @@ type Foo struct {
 }
 
 type AddressBookImpl struct {
-	*addressbook.AddressBookBase
+	*AddressBook.AddressBookBase
 }
 
 type AddressBookClient struct {
@@ -41,12 +41,12 @@ type AddressBookServerObserver struct {
 var Idx int
 
 func (c *AddressBookImpl) CreateNewContact() *dbus.Error {
-	var contact addressbook.Contact
+	var contact AddressBook.Contact
 	contact.Idx = Idx
 	Idx++
 	contact.Name = "Name" + strconv.Itoa(contact.Idx)
 	contact.Number = "12345" + strconv.Itoa(contact.Idx)
-	contact.Type = addressbook.Family
+	contact.Type = AddressBook.Family
 	c.SetContacts(append(c.Contacts(), contact))
 	fmt.Printf("newContactCreated: %v", len(c.Contacts()))
 	c.ContactCreated(contact)
@@ -89,7 +89,7 @@ func (c *AddressBookImpl) DeleteContact(contactId int) (bool, *dbus.Error) {
 	}
 	for j := i; j < len(tmpContacts); j++ {
 		fmt.Printf("newContactCreated: %v", len(c.Contacts()))
-		tmpContacts[j] = addressbook.Contact{}
+		tmpContacts[j] = AddressBook.Contact{}
 	}
 	if found {
 		c.SetContacts(tmpContacts)
@@ -99,17 +99,17 @@ func (c *AddressBookImpl) DeleteContact(contactId int) (bool, *dbus.Error) {
 	return true, nil
 }
 
-func (c *AddressBookImpl) UpdateContact(contactId int, contact addressbook.Contact) *dbus.Error {
+func (c *AddressBookImpl) UpdateContact(contactId int, contact AddressBook.Contact) *dbus.Error {
 	if contactId >= 0 && contactId < len(c.Contacts()) {
 		c.Contacts()[contactId] = contact
 		fmt.Printf("UpdateContact: %v", contact)
 	} else {
-		c.ContactUpdateFailed(addressbook.Other)
+		c.ContactUpdateFailed(AddressBook.Other)
 	}
 	return nil
 }
 
-func (c *AddressBookImpl) SetCurrentContact(value addressbook.Contact) error {
+func (c *AddressBookImpl) SetCurrentContact(value AddressBook.Contact) error {
 	if value.Idx != -1 {
 		return c.AddressBookBase.SetCurrentContact(value)
 	} else {
@@ -117,12 +117,12 @@ func (c *AddressBookImpl) SetCurrentContact(value addressbook.Contact) error {
 	}
 }
 
-func (c *AddressBookClient) OnContactsChanged(contacts []addressbook.Contact) {
+func (c *AddressBookClient) OnContactsChanged(contacts []AddressBook.Contact) {
 	c.contactsChanged++
 	c.wg.Done()
 }
 
-func (c *AddressBookClient) OnContactCreated(contacts addressbook.Contact) {
+func (c *AddressBookClient) OnContactCreated(contacts AddressBook.Contact) {
 	c.wg.Done()
 }
 
@@ -130,7 +130,7 @@ func (c *AddressBookClient) OnReadyChanged(ready bool) {
 	c.wg.Done()
 }
 
-func (c *AddressBookServerObserver) OnContactsChanged(contacts []addressbook.Contact) {
+func (c *AddressBookServerObserver) OnContactsChanged(contacts []AddressBook.Contact) {
 	c.contactsChanged++
 	c.wg.Done()
 }
@@ -164,21 +164,21 @@ func TestSetProperty(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
+	addressbookAdapter := &AddressBook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{&AddressBook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	defer addressbookAdapter.Close()
 	addressbookAdapter.Export()
 
 	addressBookServerObserver := &AddressBookServerObserver{wg: &wg}
 
-	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy := &AddressBook.AddressBookProxy{Conn: client}
 	addressBookClient := &AddressBookClient{wg: &wg}
 	addressBookProxy.Init()
 	addressBookProxy.SetServiceName(server.Names()[0])
 	addressBookProxy.ConnectToRemoteObject()
 
-	contacts := []addressbook.Contact{addressbook.Contact{1, "JohnDoe", "0198349343", addressbook.Friend}, addressbook.Contact{2, "MaxMusterman", "823439343", addressbook.Family}}
+	contacts := []AddressBook.Contact{AddressBook.Contact{1, "JohnDoe", "0198349343", AddressBook.Friend}, AddressBook.Contact{2, "MaxMusterman", "823439343", AddressBook.Family}}
 
 	addressBookImpl.AddContactsChangedObserver(addressBookServerObserver)
 	addressBookProxy.AddContactsChangedObserver(addressBookClient)
@@ -205,7 +205,7 @@ func TestSetProperty(t *testing.T) {
 		t.Errorf("failed to set remote object prop! have %v want %v", addressBookImpl.Contacts(), contacts)
 	}
 
-	otherContacts := []addressbook.Contact{addressbook.Contact{3, "NoName", "NoNumber", addressbook.Family}}
+	otherContacts := []AddressBook.Contact{AddressBook.Contact{3, "NoName", "NoNumber", AddressBook.Family}}
 
 	// wait group will panic if observer not removed due to negative wg counter
 	addressBookImpl.RemoveContactsChangedObserver(addressBookServerObserver)
@@ -227,29 +227,29 @@ func TestSetPropertyNotAllowed(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
+	addressbookAdapter := &AddressBook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{&AddressBook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
-	addressBookImpl.SetCurrentContact(addressbook.Contact{Idx: 2})
+	addressBookImpl.SetCurrentContact(AddressBook.Contact{Idx: 2})
 	if addressBookImpl.CurrentContact().Idx != 2 {
 		t.Errorf("setCurrentContact failed to accept right value")
 	}
 	addressbookAdapter.Export()
 	defer addressbookAdapter.Close()
 
-	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy := &AddressBook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
 	addressBookProxy.SetServiceName(server.Names()[0])
 	addressBookProxy.ConnectToRemoteObject()
 
-	errSetProp := addressBookProxy.SetCurrentContact(addressbook.Contact{Idx: -1})
+	errSetProp := addressBookProxy.SetCurrentContact(AddressBook.Contact{Idx: -1})
 	if errSetProp.Error() != "Wrong value" {
 		t.Errorf("setCurrentContact accepted wrong value")
 	}
 	if addressBookImpl.CurrentContact().Idx != 2 {
 		t.Errorf("setCurrentContact accepted wrong value")
 	}
-	errSetProp2 := addressBookProxy.SetCurrentContact(addressbook.Contact{Idx: 1})
+	errSetProp2 := addressBookProxy.SetCurrentContact(AddressBook.Contact{Idx: 1})
 	if errSetProp2 != nil {
 		t.Errorf("setCurrentContact failed to accept right value")
 	}
@@ -270,13 +270,13 @@ func TestCallMethod(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
+	addressbookAdapter := &AddressBook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{&AddressBook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
 	defer addressbookAdapter.Close()
 
-	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy := &AddressBook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
 	addressBookProxy.SetServiceName(server.Names()[0])
 	addressBookProxy.ConnectToRemoteObject()
@@ -317,13 +317,13 @@ func TestSignal(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
+	addressbookAdapter := &AddressBook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{&AddressBook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
 	defer addressbookAdapter.Close()
 
-	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy := &AddressBook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
 	addressBookProxy.SetServiceName(server.Names()[0])
 	addressBookProxy.ConnectToRemoteObject()
@@ -353,8 +353,8 @@ func TestGetAllOnReadyChanged(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
+	addressbookAdapter := &AddressBook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{&AddressBook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
 	defer addressbookAdapter.Close()
@@ -362,7 +362,7 @@ func TestGetAllOnReadyChanged(t *testing.T) {
 	intValues := []int{1, 2, 3}
 	addressBookImpl.SetIntValues(intValues)
 
-	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy := &AddressBook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
 	addressBookProxy.SetServiceName(server.Names()[0])
 
@@ -395,8 +395,8 @@ func TestObjectManager(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
+	addressbookAdapter := &AddressBook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{&AddressBook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.SetObjectPath(addressbookAdapter.ObjectPath() + "/ObjectManagement")
 	addressbookAdapter.Export()
@@ -404,7 +404,7 @@ func TestObjectManager(t *testing.T) {
 	intValues := []int{1, 2, 3}
 	addressBookImpl.SetIntValues(intValues)
 
-	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy := &AddressBook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
 	addressBookProxy.SetObjectPath(addressBookProxy.ObjectPath() + "/ObjectManagement")
 
@@ -455,14 +455,14 @@ func TestServiceRemoved(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
+	addressbookAdapter := &AddressBook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{&AddressBook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.SetObjectPath(addressbookAdapter.ObjectPath() + "/ServiceRemoved")
 	addressbookAdapter.Export()
 	addressBookImpl.SetReady(true)
 
-	addressBookProxy := &addressbook.AddressBookProxy{Conn: client}
+	addressBookProxy := &AddressBook.AddressBookProxy{Conn: client}
 	addressBookProxy.Init()
 	addressBookProxy.SetObjectPath(addressBookProxy.ObjectPath() + "/ServiceRemoved")
 
@@ -514,8 +514,8 @@ func TestIntrospect(t *testing.T) {
 		t.Fatal("name already taken")
 	}
 
-	addressbookAdapter := &addressbook.AddressBookAdapter{Conn: server}
-	addressBookImpl := &AddressBookImpl{&addressbook.AddressBookBase{}}
+	addressbookAdapter := &AddressBook.AddressBookAdapter{Conn: server}
+	addressBookImpl := &AddressBookImpl{&AddressBook.AddressBookBase{}}
 	addressbookAdapter.Init(addressBookImpl)
 	addressbookAdapter.Export()
 
