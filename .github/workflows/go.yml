@@ -5,6 +5,12 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      tags:
+        description: 'Test scenario tags'
+        required: false 
+        type: boolean 
 
 jobs:
 
@@ -29,9 +35,6 @@ jobs:
     - name: Install python3
       run: sudo apt install python3 python3-setuptools python3-pip -y
 
-    - name: Get dependencies
-      run: go get -v -t -d ./...
-
     - name: Install dependencies
       run: |
         pip3 install --upgrade pip
@@ -39,6 +42,9 @@ jobs:
 
     - name: Generate
       run: go generate -v ./...
+
+    - name: Get dependencies
+      run: go get -v -t -d ./...
       
     - name: Build
       run: go build -v ./...
