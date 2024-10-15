@@ -1,4 +1,4 @@
 qface==2.0.0
 # manual dependency resolution of jinja2 due to https://github.com/pallets/markupsafe/issues/286
 markupsafe==2.0.1
-jinja2==2.10
+jinja2==3.1.4
